@@ -54,7 +54,7 @@
   const rim = new THREE.DirectionalLight(col(0xFFC996), .9);
   rim.position.set(-7, 3, -5);
   scene.add(rim);
-  const fill = new THREE.DirectionalLight(col(0xFFE4D9), .35);
+  const fill = new THREE.DirectionalLight(col(0xDDE6FF), .35);
   fill.position.set(-3, -4, 6);
   scene.add(fill);
 
@@ -414,9 +414,9 @@
   const std = o => new THREE.MeshStandardMaterial(o);
   const M = {
     black: phys({ color: col(0x1A1714), roughness: .48, metalness: .25, clearcoat: .6, clearcoatRoughness: .3 }),
-    orange: phys({ color: col(0xF0521C), roughness: .32, clearcoat: 1, clearcoatRoughness: .12, emissive: col(0x3A1400) }),
-    orangeIn: phys({ color: col(0xD8461A), roughness: .4, clearcoat: .6, side: THREE.DoubleSide }),
-    red: phys({ color: col(0xC02A56), roughness: .36, clearcoat: .9, clearcoatRoughness: .15 }),
+    orange: phys({ color: col(0xF26A12), roughness: .32, clearcoat: 1, clearcoatRoughness: .12, emissive: col(0x3A1400) }),
+    orangeIn: phys({ color: col(0xE0600F), roughness: .4, clearcoat: .6, side: THREE.DoubleSide }),
+    red: phys({ color: col(0xA51E26), roughness: .36, clearcoat: .9, clearcoatRoughness: .15 }),
     chrome: std({ color: col(0xECE6DE), roughness: .14, metalness: 1, side: THREE.DoubleSide }),
     gunmetal: std({ color: col(0x2B2B2E), roughness: .36, metalness: .85 }),
     steel: std({ color: col(0x8A847E), roughness: .3, metalness: .9 }),
@@ -675,7 +675,7 @@
     bladeShape.quadraticCurveTo(-.13, .3, -.04, 0);
     const bladeGeo = extrude(bladeShape, .034, .012);
     bladeGeo.translate(0, .5, 0);
-    const bc = [], cBlack = col(0x16130F), cOrange = col(0xF0521C);
+    const bc = [], cBlack = col(0x16130F), cOrange = col(0xF26A12);
     const bp = bladeGeo.attributes.position;
     for (let i = 0; i < bp.count; i++) {
       const c = bp.getY(i) > .8 ? cOrange : cBlack;
@@ -1216,6 +1216,313 @@
     d.on = true;
   }
   const smokeDay = col(0xE9E3DA), smokeNight = col(0x5E6678), sootDay = col(0x6F665E), sootNight = col(0x23262E), smokeLight = new THREE.Color();
+
+  // ---------- Clouds ----------
+  // Cumulus built from soft puffs: a flat, shaded base, bright lumpy tops, the sun (or moon) side lit a
+  // little warmer, a silver lining where a puff thins out, and distant clouds hazed into the sky.
+  // They're drawn in one instanced call into a buffer at about half resolution (clouds are soft, so
+  // nothing is lost and the fill cost drops by ~3x), then laid behind the 3D scene.
+  // Anything that flies through a cloud shoves the puffs aside and tears it open; it knits back slowly.
+  const CLOUDS = 10, PUFFS = 27, NP = CLOUDS * PUFFS;
+  const cloudGeo = new THREE.InstancedBufferGeometry();
+  {
+    const quad = new THREE.PlaneGeometry(1, 1);
+    cloudGeo.setIndex(quad.index);
+    cloudGeo.setAttribute('position', quad.attributes.position);
+    cloudGeo.setAttribute('uv', quad.attributes.uv);
+  }
+  const cPos = new Float32Array(NP * 3), cData = new Float32Array(NP * 4), cExtra = new Float32Array(NP * 4);
+  const cPosAttr = new THREE.InstancedBufferAttribute(cPos, 3);
+  const cDataAttr = new THREE.InstancedBufferAttribute(cData, 4);
+  const cExtraAttr = new THREE.InstancedBufferAttribute(cExtra, 4);
+  [cPosAttr, cDataAttr, cExtraAttr].forEach(at => at.setUsage(THREE.DynamicDrawUsage));
+  cloudGeo.setAttribute('iPos', cPosAttr);
+  cloudGeo.setAttribute('iData', cDataAttr);
+  cloudGeo.setAttribute('iExtra', cExtraAttr);
+  cloudGeo.instanceCount = NP;
+  // Colours are authored in display (sRGB) space: the buffer is composited as-is
+  const CLOUD_LOOK = {
+    day: { lit: 0xFFFFFF, dark: 0xA3ADC2, sky: 0xF2E6D2, op: .92, light: [-.55, .84] },
+    night: { lit: 0xDDE2F6, dark: 0x1E2240, sky: 0x0B101D, op: .88, light: [.6, .8] },
+  };
+  // Tiling fractal noise: it erodes the puffs' edges into ragged, cauliflower billows and gives the body its texture
+  const cloudNoise = (() => {
+    const S = 128, data = new Uint8Array(S * S * 4);
+    const hash = (x, y, o) => { const h = Math.sin(x * 127.1 + y * 311.7 + o * 74.7) * 43758.5453; return h - Math.floor(h); };
+    const vn = (x, y, g, o) => {
+      const xi = Math.floor(x), yi = Math.floor(y);
+      let fx = x - xi, fy = y - yi;
+      fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+      const w = v => ((v % g) + g) % g;
+      const a = hash(w(xi), w(yi), o), b = hash(w(xi + 1), w(yi), o), c = hash(w(xi), w(yi + 1), o), d = hash(w(xi + 1), w(yi + 1), o);
+      return (a + (b - a) * fx) + ((c + (d - c) * fx) - (a + (b - a) * fx)) * fy;
+    };
+    for (let y = 0; y < S; y++) {
+      for (let x = 0; x < S; x++) {
+        let v = 0, amp = .5, g = 8;
+        for (let o = 0; o < 5; o++) { v += amp * vn(x / S * g, y / S * g, g, o); amp *= .5; g *= 2; }
+        const k = (y * S + x) * 4;
+        data[k] = data[k + 1] = data[k + 2] = Math.round(Math.min(1, v / .97) * 255);
+        data[k + 3] = 255;
+      }
+    }
+    const tex = new THREE.DataTexture(data, S, S, THREE.RGBAFormat);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.magFilter = tex.minFilter = THREE.LinearFilter;
+    tex.needsUpdate = true;
+    return tex;
+  })();
+  // Pass 1: every puff lays down density with a noise-eroded, billowing edge, plus the height of each pixel in
+  // its cloud and the billow texture there. Overlapping puffs merge into one body; height depends only on where
+  // the pixel is in the cloud, so neighbouring puffs agree on it (no seams, no per-ball shading).
+  const cloudUni = { noise: { value: cloudNoise } };
+  const cloudMat = new THREE.ShaderMaterial({
+    uniforms: cloudUni,
+    transparent: true,
+    depthWrite: false,
+    depthTest: false,
+    toneMapped: false,
+    vertexShader: `
+      attribute vec3 iPos;
+      attribute vec4 iData;            // size, rotation, alpha, cloud scale
+      attribute vec4 iExtra;           // stretch (x), cloud base height, haze, shape (0 billow, 1 flat base)
+      varying vec2 vUv;
+      varying vec2 vSeed;
+      varying float vA;
+      varying float vH;
+      varying float vHaze;
+      varying float vShape;
+      void main() {
+        vec4 mv = modelViewMatrix * vec4(iPos, 1.0);
+        float c = cos(iData.y), s = sin(iData.y);
+        vec2 q = position.xy * iData.x * vec2(iExtra.x, 1.0);
+        vec2 off = vec2(c * q.x - s * q.y, s * q.x + c * q.y);
+        mv.xy += off;
+        gl_Position = projectionMatrix * mv;
+        vUv = uv;
+        vSeed = vec2(fract(iData.y * .6180339), fract(iData.y * .3819660));
+        vA = iData.z;
+        vH = (iPos.y - iExtra.y + off.y) / (iData.w * 1.6) + .12;
+        vHaze = iExtra.z;
+        vShape = iExtra.w;
+      }`,
+    fragmentShader: `
+      uniform sampler2D noise;
+      varying vec2 vUv;
+      varying vec2 vSeed;
+      varying float vA;
+      varying float vH;
+      varying float vHaze;
+      varying float vShape;
+      void main() {
+        vec2 p = vUv - .5;
+        vec2 q = vShape < .5 ? p / .48 : p / vec2(.49, .32);
+        float n = texture2D(noise, vUv * .6 + vSeed).r * .62
+                + texture2D(noise, vUv * 1.5 + vSeed * 1.7).r * .28
+                + texture2D(noise, vUv * 3.4 + vSeed * 2.9).r * .1;
+        float dens = (1.0 - length(q)) * 1.3 + (n - .5) * 1.15;
+        float a = smoothstep(0.0, .32, dens) * vA;
+        if (a < .01) discard;
+        gl_FragColor = vec4(clamp(vH, 0.0, 1.0), vHaze, n, a);
+      }`,
+  });
+  const cloudMesh = new THREE.Mesh(cloudGeo, cloudMat);
+  cloudMesh.frustumCulled = false;
+  const cloudScene = new THREE.Scene();
+  cloudScene.add(cloudMesh);
+  // Pass 2 lights the merged body: brighter towards the top, the billows modelled by the noise (lumps catch
+  // the light, the creases between them sink into shadow), and a silver lining along the thin edges that face
+  // the sun or moon. Feathered, slightly see-through edges; no outline.
+  const cloudRT = new THREE.WebGLRenderTarget(2, 2, { depthBuffer: false, stencilBuffer: false });
+  const cloudSize = new THREE.Vector2();
+  function sizeClouds() {
+    renderer.getDrawingBufferSize(cloudSize);
+    cloudRT.setSize(Math.max(2, Math.ceil(cloudSize.x * .55)), Math.max(2, Math.ceil(cloudSize.y * .55)));
+    cloudComp.uniforms.px.value.set(1 / cloudRT.width, 1 / cloudRT.height);
+  }
+  const cloudComp = new THREE.ShaderMaterial({
+    uniforms: {
+      tex: { value: cloudRT.texture },
+      px: { value: new THREE.Vector2(1, 1) },
+      lit: { value: new THREE.Color() }, dark: { value: new THREE.Color() }, sky: { value: new THREE.Color() },
+      opacity: { value: .9 },
+      light: { value: new THREE.Vector2(-.55, .84) },
+    },
+    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, .9999, 1.0); }',
+    fragmentShader: `
+      uniform sampler2D tex;
+      uniform vec2 px;
+      uniform vec3 lit, dark, sky;
+      uniform float opacity;
+      uniform vec2 light;
+      varying vec2 vUv;
+      float dens(vec2 uv) { return texture2D(tex, uv).a; }
+      void main() {
+        vec4 t = texture2D(tex, vUv);
+        if (t.a < .003) { gl_FragColor = vec4(0.0); return; }
+        float a = smoothstep(.03, .7, t.a) * opacity;
+        float h = clamp(t.r / t.a, 0.0, 1.0);
+        float detail = clamp(t.b / t.a, 0.0, 1.0);
+        vec2 g = vec2(dens(vUv + px * vec2(4.0, 0.0)) - dens(vUv - px * vec2(4.0, 0.0)),
+                      dens(vUv + px * vec2(0.0, 4.0)) - dens(vUv - px * vec2(0.0, 4.0)));
+        vec3 n = normalize(vec3(-g * 1.4, 1.0));
+        vec3 L = normalize(vec3(light, .8));
+        float rim = dot(n, L) - L.z;
+        float thin = 1.0 - smoothstep(.1, .8, t.a);
+        float facing = max(0.0, dot(normalize(-g + 1e-5), light));
+        float l = .08 + .62 * smoothstep(.0, .95, h) + (detail - .5) * 1.4 + rim * 1.8;
+        vec3 col = mix(dark, lit, clamp(l, 0.0, 1.0));
+        col += lit * thin * facing * .75;                  // silver lining
+        col = mix(col, sky, clamp(t.g / t.a, 0.0, 1.0));
+        gl_FragColor = vec4(col * a, a);
+      }`,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false,
+    blending: THREE.CustomBlending,
+    blendSrc: THREE.OneFactor,
+    blendDst: THREE.OneMinusSrcAlphaFactor,
+  });
+  const cloudQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), cloudComp);
+  cloudQuad.frustumCulled = false;
+  cloudQuad.renderOrder = -100;                            // first in the opaque pass: behind every model
+  scene.add(cloudQuad);
+  const lookTmp = new THREE.Color();
+  function tintClouds(k) {
+    const D = CLOUD_LOOK.day, N = CLOUD_LOOK.night, U = cloudComp.uniforms;
+    ['lit', 'dark', 'sky'].forEach(key => U[key].value.setHex(D[key]).lerp(lookTmp.setHex(N[key]), k));
+    U.opacity.value = D.op + (N.op - D.op) * k;
+    U.light.value.set(D.light[0] + (N.light[0] - D.light[0]) * k, D.light[1] + (N.light[1] - D.light[1]) * k).normalize();
+  }
+
+  // A drifting cloud bank: a solid core, flat billows along the base, a row of billowing heads rising to a
+  // lumpy crown, a few heads in front, and ragged wisps trailing off either end
+  const clouds = Array.from({ length: CLOUDS }, (_, i) => {
+    const puffs = [];
+    const R = (a, b) => a + Math.random() * (b - a);
+    const add = (lx, ly, lz, size, shape, stretch = 1, alpha = 1) => puffs.push({
+      lx, ly, lz, size, shape, stretch, rot: Math.random() * 6.283, alpha, seed: Math.random() * 10,
+      dx: 0, dy: 0, dz: 0, vx: 0, vy: 0, vz: 0, tear: 0,
+    });
+    const lean = R(-.3, .3), tall = R(.7, 1.05);
+    for (let k = 0; k < 3; k++) add((k - 1) * .9, .5, -.7, 1.25, 0);
+    for (let k = 0; k < 6; k++) add(-1.6 + k * .64 + R(-.1, .1), .08, R(-.6, -.3), R(.85, 1.05), 1, 1.4);
+    for (let k = 0; k < 9; k++) {
+      const u = -1 + k / 8 * 2 + R(-.06, .06);
+      const crown = 1 - Math.pow(Math.abs(u - lean * .6), 1.5);
+      add(u * 1.6, .25 + crown * R(.55, .85) * tall, R(-.45, -.1), (.6 + crown * .9 * tall) * R(.85, 1.12), 0);
+    }
+    for (let k = 0; k < 5; k++) {
+      const u = R(-.85, .85);
+      add(u * 1.5, R(.1, .45), R(.05, .5), R(.5, .8) * (1 - Math.abs(u) * .3), 0);
+    }
+    [-1, 1].forEach(s => {
+      for (let k = 0; k < 2; k++) add(s * (1.75 + k * .42 + R(0, .12)), R(.1, .28), R(-.2, .2), R(.6, .78) * (1 - k * .2), 1, 1.5, .85);
+    });
+    puffs.sort((p1, p2) => p1.lz - p2.lz);
+    return {
+      puffs, x: Math.random() * 3.2 - 1.6, baseY: (i / CLOUDS) * 2 - 1 + (Math.random() - .5) * .12,
+      par: .5 + Math.random() * .8, speed: .06 + Math.random() * .1, size: .6 + Math.random() * .5,
+      z: -12 - (i % 5) * 4.5 - Math.random() * 2.5, cx: 0, cy: 0, S: 1, fresh: true,
+    };
+  }).sort((c1, c2) => c1.z - c2.z);                          // far to near
+  const cutters = [];
+  const cutPrev = new V3(), cutVel = new V3();
+  let cutPrevOk = false;
+  function addCutter(p, v, r) { cutters.push(p.x, p.y, p.z, v.x, v.y, v.z, r); }
+  function resetCloud(c) {
+    c.puffs.forEach(q => { q.dx = q.dy = q.dz = q.vx = q.vy = q.vz = q.tear = 0; });
+  }
+  function updateClouds(dt, scrollY, f) {
+    cutters.length = 0;
+    if (cutPrevOk) cutVel.subVectors(plane.position, cutPrev).divideScalar(Math.max(dt, 1e-3));
+    if (cutVel.lengthSq() > 900) cutVel.setLength(30);
+    cutPrev.copy(plane.position);
+    cutPrevOk = true;
+    addCutter(plane.position, cutVel, 2.4 * scale);
+    if (dogfight) for (const a of dogfight.actors) if (a.active) addCutter(a.pos, a.vel, a.world * 2.8);
+    for (const m of missiles) if (m.active) addCutter(m.pos, m.vel, .9 * scale);
+    const range = halfH * 3.2;
+    let o = 0;
+    for (const c of clouds) {
+      c.x -= c.speed * dt * (1 + f * 3) / Math.max(halfW, 1);
+      let jumped = c.fresh;
+      if (c.x < -1.6) { c.x += 3.2; jumped = true; }
+      const depthK = (camera.position.z - c.z) / camera.position.z;
+      const cx = c.x * halfW * .82 * depthK;
+      const yy = c.baseY * range * .5 + (scrollY / innerHeight) * c.par * halfH * .6;
+      const cy = ((((yy + range / 2) % range) + range) % range - range / 2) * depthK * .62;
+      if (Math.abs(cy - c.cy) > halfH) jumped = true;
+      if (jumped) resetCloud(c);
+      c.fresh = false;
+      c.cx = cx;
+      c.cy = cy;
+      const S = c.S, reach = S * 3.2;
+      const haze = clamp((-c.z - 15) / 22, 0, 1) * .32;
+      let near = 0;
+      const nearList = updateClouds.near || (updateClouds.near = []);
+      nearList.length = 0;
+      for (let k = 0; k < cutters.length; k += 7) {
+        const ddx = cutters[k] - cx, ddy = cutters[k + 1] - (cy + S * .5), ddz = cutters[k + 2] - c.z;
+        if (ddx * ddx + ddy * ddy + ddz * ddz < (reach + cutters[k + 6]) ** 2) { nearList.push(k); near++; }
+      }
+      const drag = 1 - Math.min(1, dt * 2.2), home = 1 - Math.min(1, dt * .1);
+      for (const q of c.puffs) {
+        if (near) {
+          const px = cx + q.lx * S + q.dx, py = cy + q.ly * S + q.dy, pz = c.z + q.lz * S + q.dz;
+          for (const k of nearList) {
+            const ddx = px - cutters[k], ddy = py - cutters[k + 1], ddz = pz - cutters[k + 2];
+            const R = cutters[k + 6] + q.size * S * .4;
+            const d2 = ddx * ddx + ddy * ddy + ddz * ddz;
+            if (d2 > R * R) continue;
+            const dist = Math.sqrt(d2) || 1e-3;
+            const vx = cutters[k + 3], vy = cutters[k + 4], vz = cutters[k + 5];
+            const sp = Math.hypot(vx, vy, vz);
+            let lx = ddx, ly = ddy, lz = ddz;
+            if (sp > 1e-3) {
+              const al = (ddx * vx + ddy * vy + ddz * vz) / (sp * sp);
+              lx -= vx * al; ly -= vy * al; lz -= vz * al;
+            }
+            let ll = Math.hypot(lx, ly, lz);
+            if (ll < 1e-3) { lx = Math.random() - .5; ly = Math.random() - .5; lz = 0; ll = Math.hypot(lx, ly) || 1; }
+            const push = 1 - dist / R;
+            const kk = push * (5 + sp * .9) * dt;
+            q.vx += lx / ll * kk + vx * push * .25 * dt;
+            q.vy += ly / ll * kk + vy * push * .25 * dt;
+            q.vz += lz / ll * kk + vz * push * .25 * dt;
+            q.tear = Math.min(1, q.tear + push * dt * 5);
+            q.rot += (q.lx > 0 ? 1 : -1) * push * dt * 2;
+          }
+        }
+        if (q.vx || q.vy || q.vz || q.dx || q.dy || q.dz) {
+          q.vx *= drag; q.vy *= drag; q.vz *= drag;
+          q.dx = (q.dx + q.vx * dt) * home;
+          q.dy = (q.dy + q.vy * dt) * home;
+          q.dz = (q.dz + q.vz * dt) * home;
+          const dl = Math.hypot(q.dx, q.dy, q.dz), lim = S * 3;
+          if (dl > lim) { q.dx *= lim / dl; q.dy *= lim / dl; q.dz *= lim / dl; }
+          if (Math.abs(q.dx) + Math.abs(q.dy) + Math.abs(q.dz) < 1e-4 && Math.abs(q.vx) + Math.abs(q.vy) + Math.abs(q.vz) < 1e-4) q.dx = q.dy = q.dz = q.vx = q.vy = q.vz = 0;
+        }
+        q.tear = Math.max(0, q.tear - dt * .06);
+        const breathe = 1 + Math.sin(time * .35 + q.seed) * .03;
+        cPos[o * 3] = cx + q.lx * S + q.dx;
+        cPos[o * 3 + 1] = cy + q.ly * S + q.dy;
+        cPos[o * 3 + 2] = c.z + q.lz * S + q.dz;
+        cData[o * 4] = q.size * S * breathe * (1 + q.tear * .45);
+        cData[o * 4 + 1] = q.rot;
+        cData[o * 4 + 2] = q.alpha * (1 - q.tear * .62);
+        cData[o * 4 + 3] = S;
+        cExtra[o * 4] = q.stretch;
+        cExtra[o * 4 + 1] = cy;
+        cExtra[o * 4 + 2] = haze;
+        cExtra[o * 4 + 3] = q.shape;
+        o++;
+      }
+    }
+    cPosAttr.needsUpdate = true;
+    cDataAttr.needsUpdate = true;
+    cExtraAttr.needsUpdate = true;
+  }
 
   // ---------- Weapons FX ----------
   // Everything lives in the WebGL canvas, which sits behind the page content, so none of it can cover text.
@@ -2025,7 +2332,7 @@
   poolGeo.rotateX(-Math.PI / 2);
   poolGeo.translate(0, .0012, 0);
   const poolMat = new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
-  const podLight = new THREE.PointLight(col(0xFFC9A8), 0, 10, 2);
+  const podLight = new THREE.PointLight(col(0xA8C8FF), 0, 10, 2);
   scene.add(podLight);
   const lampCol = new THREE.Color(), lampM4 = new THREE.Matrix4(), lampS = new V3();
   function makePodium() {
@@ -2144,6 +2451,8 @@
     mobile = W < 860;
     scale = Flight.layout ? Flight.layout.scale : mobile ? clamp(halfW / 3.6, .45, .8) : clamp(halfW / 5.4, .8, 1.75);
     buildRoutes();
+    clouds.forEach(c => { c.S = c.size * scale * (mobile ? 1.15 : 1.5); c.fresh = true; });
+    sizeClouds();
   }
   layout();
   addEventListener('resize', layout);
@@ -3474,14 +3783,14 @@
   const LOOK = {
     day: {
       exposure: 1.12, hemiSky: col(0xFFF6EA), hemiGround: col(0xA88560), hemi: .78,
-      key: col(0xFFFFFF), keyI: 1.85, rim: col(0xFFC996), rimI: .9, fill: col(0xFFE4D9), fillI: .3,
-      trim: col(0x3A1400), trimIn: col(0x000000), red: col(0x000000),
+      key: col(0xFFFFFF), keyI: 1.85, rim: col(0xFFC996), rimI: .9, fill: col(0xDDE6FF), fillI: .3,
+      cloud: col(0xFFFDF8).multiplyScalar(1.3), cloudDark: col(0xA9A3A6), cloudRim: col(0xFFF3DE), cloudOp: 1, puff: col(0xF8F1E6), trim: col(0x3A1400), trimIn: col(0x000000), red: col(0x000000),
       paint: .24, env: .75,
     },
     night: {
-      exposure: 1.0, hemiSky: col(0x5A3A34), hemiGround: col(0x0B0706), hemi: .55,
-      key: col(0xFFD6C2), keyI: 1.15, rim: col(0xFF7A4D), rimI: .8, fill: col(0x8A4A5C), fillI: .3,
-      trim: col(0xFF5A10), trimIn: col(0x9A3208), red: col(0x6A0A12),
+      exposure: 1.0, hemiSky: col(0x2E3F66), hemiGround: col(0x06070B), hemi: .55,
+      key: col(0xA9C1FF), keyI: 1.2, rim: col(0xFF7A33), rimI: .75, fill: col(0x4455A0), fillI: .28,
+      cloud: col(0x98A8D2).multiplyScalar(1.05), cloudDark: col(0x171D31), cloudRim: col(0xD4DEFF), cloudOp: .88, puff: col(0x6A7288), trim: col(0xFF5A10), trimIn: col(0x9A3208), red: col(0x6A0A12),
       paint: 3.4, env: .3,
     },
   };
@@ -3510,6 +3819,7 @@
     rim.intensity = mix(D.rimI, N.rimI, k);
     fill.color.copy(D.fill).lerp(N.fill, k);
     fill.intensity = mix(D.fillI, N.fillI, k);
+    tintClouds(k);
     // Glow paint: the orange livery lights up
     M.fuse.emissiveIntensity = mix(D.paint, N.paint, k);
     M.wing.emissiveIntensity = mix(D.paint, N.paint * .9, k);
@@ -3522,7 +3832,7 @@
   }
 
   // Inspection hook for development only: open the page with ?debug
-  if (/[?&]debug\b/.test(location.search)) window.__plane = { THREE, scene, camera, renderer, plane, model, explode, dogfight, podiums, game, spins, spinTargets, aim, troops, missiles, step: d => step(d), takeHit, hitPoint, dmg, holes, defense };
+  if (/[?&]debug\b/.test(location.search)) window.__plane = { THREE, scene, camera, renderer, plane, model, explode, dogfight, podiums, game, spins, spinTargets, aim, troops, clouds, missiles, step: d => step(d), takeHit, hitPoint, dmg, holes, defense };
 
   // ---------- Crew animation ----------
   // The stick follows the plane's real roll and pitch rates, the throttle follows the engine, the gunner's grips
@@ -3695,9 +4005,6 @@
     C.btnMesh.instanceColor.needsUpdate = true;
   }
 
-  // The plane's place on screen, for the page's background gradient (js/gradient.js) to react to
-  const planeNdc = new V3();
-  const planeScreen = Flight.planeScreen = { x: innerWidth * .7, y: innerHeight * .6, k: 0 };
   function frame() {
     requestAnimationFrame(frame);
     step(clock.getDelta());
@@ -3712,8 +4019,8 @@
 
     // Adaptive resolution: drop pixel ratio if frames run long, restore when there's headroom
     if (rawDt > .021) { slowFrames++; fastFrames = 0; } else if (rawDt < .0175) { fastFrames++; slowFrames = 0; }
-    if (slowFrames > 10 && dpr > 1) { dpr = Math.max(1, dpr - .25); renderer.setPixelRatio(dpr); slowFrames = 0; }
-    if (fastFrames > 360 && dpr < maxDpr) { dpr = Math.min(maxDpr, dpr + .25); renderer.setPixelRatio(dpr); fastFrames = 0; }
+    if (slowFrames > 10 && dpr > 1) { dpr = Math.max(1, dpr - .25); renderer.setPixelRatio(dpr); sizeClouds(); slowFrames = 0; }
+    if (fastFrames > 360 && dpr < maxDpr) { dpr = Math.min(maxDpr, dpr + .25); renderer.setPixelRatio(dpr); sizeClouds(); fastFrames = 0; }
 
     night.k += (night.target - night.k) * Math.min(1, dt * 1.7);
     if (Math.abs(night.target - night.k) < .002) night.k = night.target;
@@ -4114,10 +4421,8 @@
       sfx.engine(rpm, Math.min(1, intro * 2) * clamp(18 / dist, .3, 1.15), panOf(plane.position));
     }
 
-    planeNdc.copy(plane.position).project(camera);
-    planeScreen.x = (planeNdc.x + 1) / 2 * innerWidth;
-    planeScreen.y = (1 - planeNdc.y) / 2 * innerHeight;
-    planeScreen.k = f;
+    // Clouds drift, parallax with the scroll (or the jump), and part around anything flying through
+    updateClouds(dt, jumping ? Flight.jump.y : st.y, f);
 
     // HUD (text updates throttled to ~12 fps to avoid layout work every frame)
     hudTimer += dt;
@@ -4149,11 +4454,15 @@
     smokeSys.end();
     fireSys.end();
     renderer.render(scene, camera);
+    renderer.setRenderTarget(cloudRT);
+    renderer.render(cloudScene, camera);
+    renderer.setRenderTarget(null);
   }
   // Compile every shader up front, while the loader is showing: otherwise the first explosion, fire,
-  // or squad would stall a frame while its program compiles
+  // squad or cloud would stall a frame while its program compiles
   try {
     renderer.compile(scene, camera);
+    renderer.compile(cloudScene, camera);
   } catch (e) { /* compiled lazily instead */ }
   // ...and draw everything once off-screen: the GPU driver only finishes a shader (and uploads its
   // textures) on the first real draw, which would otherwise be a visible stall mid-flight
@@ -4168,6 +4477,7 @@
     renderer.shadowMap.needsUpdate = true;
     renderer.setRenderTarget(rt);
     renderer.render(scene, camera);
+    renderer.render(cloudScene, camera);
     renderer.setRenderTarget(null);
     shown.forEach(o => { o.visible = false; });
     Object.values(troopParts).forEach((m, i) => { m.count = counts[i]; });

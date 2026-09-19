@@ -8,12 +8,8 @@
      so nothing on the main thread can make them stutter.
    The master chain ends in a glue compressor and a limiter, so stacked sounds never clip.
 
-   Two background soundtracks, picked from the nav (remembered):
-   - "Carol of the Skies": a driving violin arrangement of "Shchedryk" (Carol of the Bells), G minor, 3/4 at
-     170 BPM, strings and bells only (no drums, no bass);
-   - "Dogfight": the mini-game's electronic track (A minor, 125 BPM, light drums), also on offer as the soundtrack.
-   While music plays, gunfire locks to the song's 16ths and rings a plucked note from the current chord,
-   so a burst plays along with the tune.
+   Background soundtrack "Dogfight" (the mini-game's track: A minor, 125 BPM, light drums), picked from the
+   song button in the nav. Gunfire and rocket launches are synthesised to sound like the real thing.
 
    Browsers only allow audio after a click, tap or key press, so sound starts on the first interaction.
    The nav "Sound" button opens a small menu with separate Music and Effects switches (remembered).
@@ -29,7 +25,7 @@
   const VOLUME = .8;
   const MUSIC_RATE = 32000;          // render rate for the soundtracks (keeps the buffers small)
 
-  const prefs = { music: true, fx: true, track: 'winter' };
+  const prefs = { music: true, fx: true, track: 'dogfight' };
   try {
     const saved = JSON.parse(localStorage.getItem(KEY));
     if (saved) Object.assign(prefs, saved);
@@ -148,20 +144,28 @@
   // Effects bank
   // =========================================================
   const FX = {
-    gun: { n: 4, dur: .3, make(d, v) {
+    // A machine-gun round: a hard, clipped muzzle crack, the low thump of the cartridge, the metallic clack of
+    // the bolt cycling a few milliseconds later, and the report rolling away across the sky
+    gun: { n: 6, dur: .5, make(d, v) {
       const t = .004;
-      hiss({ t, dest: d, f: rnd(1700, 2500), q: .9, attack: .001, peak: .75 * v, decay: rnd(.04, .06) });
-      tone({ t, dest: d, f: rnd(150, 190), f2: 46, attack: .001, peak: .85 * v, decay: .1 });
-      tone({ t, dest: d, type: 'triangle', f: 92, f2: 40, attack: .001, peak: .3 * v, decay: .14 });
-      hiss({ t, dest: d, type: 'highpass', f: 4200, attack: .0005, peak: .22 * v, decay: .018 });
-      hiss({ t: t + rnd(.03, .045), dest: d, f: 3100, q: 5, peak: .07 * v, decay: .014 });
-      hiss({ t: t + .01, dest: d, type: 'lowpass', f: 900, f2: 300, peak: .14 * v, decay: .22 });
+      const crack = C.createWaveShaper();
+      crack.curve = driveCurve(3.5);
+      crack.connect(d);
+      hiss({ t, dest: crack, type: 'highpass', f: rnd(900, 1400), attack: .0004, peak: 1.05 * v, decay: rnd(.016, .024) });
+      tone({ t, dest: crack, type: 'square', f: rnd(95, 125), f2: 38, attack: .0005, peak: .42 * v, decay: .05 });
+      tone({ t, dest: d, f: rnd(140, 175), f2: 46, attack: .001, peak: .8 * v, decay: .1 });
+      hiss({ t, dest: d, type: 'lowpass', f: 1500, f2: 220, attack: .001, peak: .5 * v, decay: .13 });
+      const bolt = t + rnd(.022, .032);
+      hiss({ t: bolt, dest: d, f: rnd(2600, 3500), q: 9, attack: .0005, peak: .2 * v, decay: .02 });
+      tone({ t: bolt, dest: d, type: 'triangle', f: rnd(1800, 2400), attack: .0005, peak: .05 * v, decay: .03 });
+      hiss({ t: t + .015, dest: lowpass(900, d), f: 480, q: .6, attack: .02, peak: .16 * v, decay: .34 });
     } },
-    gunFar: { n: 2, dur: .35, make(d, v) {
-      const l = lowpass(1400, d);
-      hiss({ t: .004, dest: l, f: 1300, q: .8, peak: .5 * v, decay: .07 });
-      tone({ t: .004, dest: l, f: 140, f2: 45, peak: .5 * v, decay: .1 });
-      hiss({ t: .02, dest: l, type: 'lowpass', f: 700, f2: 200, peak: .12 * v, decay: .28 });
+    // Far off: the crack is gone, just a dull report and its echo
+    gunFar: { n: 3, dur: .6, make(d, v) {
+      const l = lowpass(1600, d);
+      hiss({ t: .004, dest: l, type: 'highpass', f: 500, attack: .001, peak: .55 * v, decay: .035 });
+      tone({ t: .004, dest: l, f: 115, f2: 44, attack: .001, peak: .5 * v, decay: .09 });
+      hiss({ t: .03, dest: l, f: 420, q: .6, attack: .03, peak: .16 * v, decay: .42 });
     } },
     tink: { n: 3, dur: .16, make(d, v) {
       const f = rnd(3600, 6200);
@@ -169,10 +173,17 @@
       tone({ t: .002, dest: d, f: f * 1.51, peak: .04 * v, decay: .045 });
       tone({ t: .05, dest: d, f: f * .98, peak: .03 * v, decay: .04 });
     } },
-    rocket: { n: 2, dur: 1.2, make(d, v) {
-      tone({ t: .004, dest: d, f: 110, f2: 50, peak: .4 * v, decay: .12 });
-      hiss({ t: .04, dest: d, f: 380, f2: 2600, q: 1.2, attack: .05, peak: .34 * v, decay: .9 });
-      hiss({ t: .04, dest: d, type: 'lowpass', f: 500, attack: .03, peak: .18 * v, decay: .8 });
+    // A rocket leaving the rack: the ignition pop and thump, then the motor's roar opening up as it tears away,
+    // the hiss of the jet and the rough crackle of the burn
+    rocket: { n: 3, dur: 1.9, make(d, v) {
+      hiss({ t: .003, dest: d, type: 'highpass', f: 1500, attack: .0005, peak: .5 * v, decay: .02 });
+      tone({ t: .003, dest: d, f: 125, f2: 38, attack: .001, peak: .7 * v, decay: .18 });
+      hiss({ t: .02, dest: d, f: 480, f2: rnd(1900, 2400), q: .9, attack: .06, peak: .55 * v, decay: 1.35 });
+      hiss({ t: .02, dest: d, type: 'lowpass', f: 380, f2: 170, attack: .04, peak: .45 * v, decay: 1.45 });
+      hiss({ t: .03, dest: d, type: 'highpass', f: 4200, attack: .05, peak: .12 * v, decay: 1.1 });
+      for (let i = 0; i < 28; i++) {
+        hiss({ t: rnd(.05, 1.25), dest: d, f: rnd(1200, 3400), q: 3, attack: .0005, peak: rnd(.05, .14) * v * (1 - i / 40), decay: .008 });
+      }
     } },
     rocketSoft: { n: 1, dur: 1.2, make(d, v) { FX.rocket.make(lowpass(1800, d), v * .9); } },
     boom: { n: 3, dur: 2.4, make(d, v, air) {
@@ -269,7 +280,7 @@
   }
 
   // Voice manager: per-sound limits; the oldest voice of a kind fades out when a new one needs room
-  const LIMIT = { click: 2, gear: 1, gun: 6, gunFar: 3, tink: 3, impact: 4, letter: 3, boom: 4, boomAir: 3, boomFar: 3, rocket: 4, rocketSoft: 3, ping: 2, crash: 2 };
+  const LIMIT = { click: 2, gear: 1, gun: 8, gunFar: 3, tink: 3, impact: 4, letter: 3, boom: 4, boomAir: 3, boomFar: 3, rocket: 4, rocketSoft: 3, ping: 2, crash: 2 };
   const voices = [];
   const last = {};
   function release(v, t) {
@@ -428,7 +439,6 @@
       bg.pan.pan.setTargetAtTime(clamp(pan * .5, -1, 1), t, .3);
     },
     gun(pan, far) {
-      if (musicalShot(pan, far)) return;
       if (far) play('gunFar', { pan, gain: .5, gap: .06, rate: rnd(.95, 1.05) });
       else play('gun', { pan, gain: .78, gap: .036, rate: rnd(.96, 1.06) });
     },
@@ -456,43 +466,6 @@
     click(pan) { play('click', { pan, gain: .45, gap: .05, rate: rnd(.92, 1.1) }); },
   };
 
-  // ---------- Gunfire in time and in tune with the soundtrack ----------
-  // While music plays, every shot lands on the song's next 16th (one shot per 16th, so a burst becomes a
-  // rhythm), a little softer, and rings a plucked note from the chord of the moment, climbing through it
-  // shot by shot: a burst plays an arpeggio along with the tune.
-  const shots = { slot: -1, farSlot: -1, k: 0, last: -9 };
-  function tuneNote(n, pan, delay, v) {
-    const src = ctx.createBufferSource();
-    src.buffer = pluckBuffer(n, .8);
-    const g = ctx.createGain();
-    g.gain.value = v;
-    const p = ctx.createStereoPanner();
-    p.pan.value = clamp(pan * .6, -1, 1);
-    src.connect(g); g.connect(p); p.connect(fxBus);
-    src.start(ctx.currentTime + delay);
-    src.onended = () => p.disconnect();
-  }
-  function musicalShot(pan, far) {
-    if (!live() || !bankReady || !prefs.music) return false;
-    const c = bgm.clock(ctx.currentTime + .015);
-    if (!c) return false;
-    const delay = Math.max(0, c.slotTime - ctx.currentTime);
-    if (far) {
-      if (c.slot === shots.farSlot || c.slot === shots.slot) return true;
-      shots.farSlot = c.slot;
-      play('gunFar', { pan, gain: .38, delay, rate: rnd(.97, 1.03) });
-      return true;
-    }
-    if (c.slot === shots.slot) return true;
-    shots.slot = c.slot;
-    if (c.slotTime - shots.last > .4) shots.k = 0;
-    shots.last = c.slotTime;
-    const [a, b, d] = c.S.chordAt(c.bar);
-    const run = [a, b, d, a + 12, b + 12, d + 12, a + 24, d + 12, b + 12, a + 12];
-    play('gun', { pan, gain: .5, delay, rate: rnd(.98, 1.02) });
-    tuneNote(run[shots.k++ % run.length] + 12, pan, delay, .42);
-    return true;
-  }
 
   // =========================================================
   // Offline song renderer
@@ -553,263 +526,6 @@
     }
     return p;
   }
-  // ---------- Plucked strings (Karplus-Strong), shared by the violin track's pizzicato and the musical gunfire ----------
-  const plucks = new Map();
-  function pluckBuffer(n, bright = .5) {
-    const key = `${n}:${bright}`;
-    if (plucks.has(key)) return plucks.get(key);
-    const rate = MUSIC_RATE, f = hz(n), len = Math.floor(rate * .9);
-    const buf = newBuffer(1, len, rate), d = buf.getChannelData(0);
-    const N = Math.max(2, Math.round(rate / f)), line = new Float32Array(N);
-    let lp = 0;
-    for (let i = 0; i < N; i++) { lp += ((Math.random() * 2 - 1) - lp) * (.25 + bright * .7); line[i] = lp; }
-    const decay = .994 + Math.min(.005, 60 / f * .01);
-    let idx = 0;
-    for (let i = 0; i < len; i++) {
-      const cur = line[idx], nxt = line[(idx + 1) % N];
-      line[idx] = (cur + nxt) * .5 * decay;
-      d[i] = cur * Math.min(1, i / 40) * (1 - i / len);
-      idx = (idx + 1) % N;
-    }
-    plucks.set(key, buf);
-    return buf;
-  }
-
-  // ---------- "Carol of the Skies" ----------
-  // A driving violin arrangement of Leontovych's "Shchedryk" (1916, the tune behind "Carol of the Bells"),
-  // G minor, 3/4 at 170 BPM. Strings and bells only (no drums, no bass): the drive comes from the strings
-  // themselves, with a hard-bowed solo violin with a bit of electric bite, relentless spiccato chugs, col legno chops,
-  // tremolo swells, rising runs and full-section stabs. Intro, the ostinato, the ostinato in thirds, the
-  // falling "merry, merry" lines, the tolling bells, and a climax in octaves that drops back into the ostinato.
-  const winter = (() => {
-    const BPM = 170, STEP = 60 / BPM / 4, SPB = 12, INTRO = 4;
-    const GM = [55, 58, 62], D = [54, 57, 62], CM = [55, 60, 63], EB = [55, 58, 63], F = [53, 57, 60];
-    const LAMENT = [GM, D, GM, CM, EB, D, GM, D];
-    // [16th step, note, length in 16ths] inside one bar
-    const OST = [[0, 70, 4], [4, 69, 2], [6, 70, 2], [8, 67, 4]];                 // Bb A Bb G
-    const OST_3RD = [[0, 74, 4], [4, 72, 2], [6, 74, 2], [8, 70, 4]];             // D C D Bb
-    const FALL = [
-      [[0, 79, 2], [2, 79, 2], [4, 79, 2], [6, 77, 2], [8, 75, 2], [10, 74, 2]],
-      [[0, 77, 2], [2, 77, 2], [4, 77, 2], [6, 75, 2], [8, 74, 2], [10, 72, 2]],
-      [[0, 75, 2], [2, 75, 2], [4, 75, 2], [6, 74, 2], [8, 72, 2], [10, 70, 2]],
-      [[0, 74, 2], [2, 72, 2], [4, 70, 2], [6, 69, 2], [8, 67, 4]],
-    ];
-    const FALL_CH = [GM, F, EB, D];
-    const TOLL = [[[0, 74, 12]], [[0, 75, 12]], [[0, 74, 8], [8, 72, 4]], []];
-    const TOLL_CH = [GM, CM, GM, D];
-    const RUN = [67, 69, 70, 72, 74, 75, 77, 79, 81, 82, 84, 86];                // G minor, two octaves up
-    // loop bar -> section
-    const sec = lb => (lb < 8 ? 'ost' : lb < 16 ? 'third' : lb < 24 ? 'fall' : lb < 28 ? 'toll' : 'climax');
-    const chordAt = bar => {
-      if (bar < INTRO) return GM;
-      const lb = (bar - INTRO) % 32, s = sec(lb);
-      if (s === 'fall') return FALL_CH[lb % 4];
-      if (s === 'toll') return TOLL_CH[lb - 24];
-      return LAMENT[lb % 8];
-    };
-
-    function makeBus(oc) {
-      const out = oc.createGain();
-      out.gain.value = .72;
-      out.connect(oc.destination);
-      const verb = oc.createConvolver();
-      verb.buffer = impulse(oc.sampleRate, 2.2);
-      const wet = oc.createGain();
-      wet.gain.value = .26;
-      verb.connect(wet); wet.connect(out);
-      const send = oc.createGain();
-      send.connect(verb);
-      const strings = oc.createGain();
-      strings.connect(out);
-      const bells = oc.createGain();
-      bells.gain.value = .75;
-      bells.connect(out);
-      const bs = oc.createGain();
-      bs.gain.value = .6;
-      bells.connect(bs); bs.connect(send);
-      return { out, send, strings, bells };
-    }
-    // Bowed violin: detuned saws (optionally driven for an electric bite), delayed vibrato, body EQ, bow noise
-    function violin(B, t, n, len, v, o = {}) {
-      const f = hz(n), att = o.att || .03, rel = o.rel || .12, voices = o.voices || 2;
-      const g = C.createGain();
-      g.gain.setValueAtTime(.0001, t);
-      if (o.swell) g.gain.linearRampToValueAtTime(v, t + len * .9);
-      else {
-        g.gain.linearRampToValueAtTime(v * (o.accent || 1.15), t + att);
-        g.gain.setTargetAtTime(v * .8, t + att, .08);
-      }
-      g.gain.setTargetAtTime(.0001, t + len, rel / 3);
-      if (o.trem) {                                        // bowed tremolo: fast, even re-bowing
-        const lfo = C.createOscillator();
-        lfo.frequency.value = 15;
-        const d = C.createGain();
-        d.gain.value = .45;
-        const tg = C.createGain();
-        tg.gain.value = .55;
-        lfo.connect(d); d.connect(tg.gain);
-        g.connect(tg);
-        lfo.start(t); lfo.stop(t + len + rel + .05);
-        o.out = tg;
-      }
-      const lp = C.createBiquadFilter();
-      lp.type = 'lowpass';
-      lp.frequency.value = o.dark ? 3000 : 6200;
-      const bright = C.createBiquadFilter();
-      bright.type = 'peaking';
-      bright.frequency.value = 3000;
-      bright.Q.value = 1.1;
-      bright.gain.value = o.dark ? 2 : 6;
-      const body = C.createBiquadFilter();
-      body.type = 'peaking';
-      body.frequency.value = 480;
-      body.Q.value = 1.3;
-      body.gain.value = 4;
-      const hp = C.createBiquadFilter();
-      hp.type = 'highpass';
-      hp.frequency.value = 200;
-      let head = lp;
-      if (o.drive) {
-        const sh = C.createWaveShaper();
-        sh.curve = driveCurve(o.drive);
-        sh.connect(lp);
-        head = sh;
-      }
-      lp.connect(bright); bright.connect(body); body.connect(hp); hp.connect(g);
-      const vib = C.createOscillator();
-      vib.frequency.value = 5.6 + Math.random() * .6;
-      const depth = C.createGain();
-      depth.gain.setValueAtTime(0, t);
-      depth.gain.setValueAtTime(0, t + Math.min(.16, len * .4));
-      depth.gain.linearRampToValueAtTime(f * (o.vib == null ? .007 : o.vib), t + Math.min(.4, len * .8));
-      vib.connect(depth);
-      const end = t + len + rel + .05;
-      for (let k = 0; k < voices; k++) {
-        const osc = C.createOscillator();
-        osc.type = 'sawtooth';
-        osc.frequency.value = f;
-        osc.detune.value = (k - (voices - 1) / 2) * 8 + (Math.random() - .5) * 3;
-        depth.connect(osc.frequency);
-        const og = C.createGain();
-        og.gain.value = 1 / voices;
-        osc.connect(og); og.connect(head);
-        osc.start(t); osc.stop(end);
-      }
-      vib.start(t); vib.stop(end);
-      hiss({ t, dest: g, f: 3400, q: .8, attack: .004, peak: .06, decay: Math.min(.12, len) });   // the bow biting in
-      const outNode = o.out || g;
-      const p = panner(o.pan || 0, B.strings);
-      outNode.connect(p);
-      const s = C.createGain();
-      s.gain.value = o.wet == null ? .45 : o.wet;
-      outNode.connect(s); s.connect(B.send);
-    }
-    // Spiccato chug: a short, hard bow stroke
-    function chug(B, t, n, v, pan) {
-      const o = C.createOscillator();
-      o.type = 'sawtooth';
-      o.frequency.value = hz(n);
-      const o2 = C.createOscillator();
-      o2.type = 'sawtooth';
-      o2.frequency.value = hz(n);
-      o2.detune.value = 9;
-      const f = C.createBiquadFilter();
-      f.type = 'lowpass';
-      f.frequency.setValueAtTime(3800, t);
-      f.frequency.exponentialRampToValueAtTime(900, t + .07);
-      const g = C.createGain();
-      envelope(g, t, .003, v, .075);
-      const p = panner(pan, B.strings);
-      o.connect(f); o2.connect(f); f.connect(g); g.connect(p);
-      hiss({ t, dest: p, f: 2600, q: 1.2, attack: .001, peak: v * .35, decay: .02 });
-      [o, o2].forEach(x => { x.start(t); x.stop(t + .11); });
-    }
-    // Col legno: the wood of the bow struck on the strings, a dry percussive click with a pitch
-    function chop(B, t, v, n = 55) {
-      hiss({ t, dest: B.strings, f: 1900, q: 1.6, attack: .001, peak: v, decay: .045 });
-      hiss({ t, dest: B.strings, type: 'lowpass', f: 700, attack: .001, peak: v * .6, decay: .06 });
-      tone({ t, dest: B.strings, type: 'triangle', f: hz(n), attack: .001, peak: v * .5, decay: .05 });
-    }
-    function pizz(B, t, n, v, pan) {
-      const src = C.createBufferSource();
-      src.buffer = pluckBuffer(n, .45);
-      const g = C.createGain();
-      g.gain.value = v;
-      const p = panner(pan, B.strings);
-      src.connect(g); g.connect(p);
-      const s = C.createGain();
-      s.gain.value = .4;
-      g.connect(s); s.connect(B.send);
-      src.start(t);
-    }
-    function bell(B, t, n, v) {
-      const f = hz(n);
-      [[1, 1, 1.8], [2.76, .34, .6], [5.4, .18, .3], [8.93, .08, .15]].forEach(([m, a, d]) =>
-        tone({ t, dest: B.bells, f: f * m, attack: .002, peak: v * a, decay: d }));
-    }
-    const lead = (B, t, i, list, k, v, o) => list.forEach(([st, n, len]) => {
-      if (st === i) violin(B, t, n + k, STEP * len * .92, v, { accent: st === 0 ? 1.3 : 1.1, ...o });
-    });
-
-    function play(B, s, t) {
-      const bar = Math.floor(s / SPB), i = s % SPB;
-      const lb = bar - INTRO, S = lb < 0 ? 'intro' : sec(lb % 32);
-      const ch = chordAt(bar), root = ch[0];
-      if (S === 'intro') {
-        // pizzicato ostinato, a tremolo swell underneath, and a run up into the theme
-        OST.forEach(([st, n]) => { if (st === i) pizz(B, t, n, .42 + bar * .08, st === 4 ? .3 : -.3); });
-        if (i === 0 && bar < 3) violin(B, t, 55 + (bar === 2 ? 3 : 0), STEP * 11.5, .05 + bar * .02, { trem: true, dark: true, swell: true, voices: 3, pan: -.3 });
-        if (bar === 3) chug(B, t, RUN[i], .06 + i * .006, (i % 2 ? .3 : -.3));
-        return;
-      }
-      // ---- the drive: spiccato 16ths on the root and fifth, accented in the ostinato's rhythm ----
-      if (S !== 'toll') {
-        const acc = i === 0 ? 1 : (i === 4 || i === 6 || i === 8) ? .8 : .5;
-        const v = (S === 'climax' ? .09 : S === 'ost' ? .065 : .08) * acc;
-        chug(B, t, i % 4 === 2 ? root + 7 : root, v, i % 2 ? .45 : .25);
-        if (S === 'climax' || S === 'fall') chug(B, t, root + 12, v * .6, -.4);
-      }
-      // col legno chops: beat one, then the offbeat kicks that push it forward
-      if (S !== 'toll') {
-        if (i === 0) chop(B, t, S === 'ost' ? .16 : .22);
-        if ((S === 'fall' || S === 'climax') && (i === 6 || i === 10)) chop(B, t, .14, 62);
-        if (S === 'third' && i === 8) chop(B, t, .12, 62);
-      }
-      // full-section stabs on the downbeat of every other bar in the big sections
-      if (i === 0 && (S === 'climax' || (S === 'fall' && lb % 2 === 0) || (S === 'third' && lb % 4 === 0))) {
-        ch.forEach((n, k) => violin(B, t, n + 12, STEP * 2.2, .08, { voices: 3, pan: (k - 1) * .6, rel: .25, dark: k === 0 }));
-      }
-      // ---- the melody ----
-      if (S === 'ost') lead(B, t, i, OST, 12, .2, { drive: 1.4, voices: 2 });
-      if (S === 'third') {
-        lead(B, t, i, OST, 12, .12, { voices: 3, dark: true, pan: -.35 });
-        lead(B, t, i, OST_3RD, 12, .19, { drive: 1.4, voices: 2 });
-        if (lb >= 12) lead(B, t, i, OST, 0, .1, { voices: 3, dark: true, pan: .35 });
-      }
-      if (S === 'fall') {
-        const bars = FALL[lb % 4], up = lb >= 20 ? 12 : 0;
-        lead(B, t, i, bars, up, .2, { drive: 1.5, voices: 2 });
-        if (up) lead(B, t, i, bars, 0, .12, { voices: 3, dark: true, pan: -.3 });
-        if (i === 0) ch.forEach((n, k) => violin(B, t, n, STEP * 11.6, .045, { trem: true, voices: 2, dark: true, pan: (k - 1) * .5 }));
-      }
-      if (S === 'toll') {
-        const k = lb - 24;
-        lead(B, t, i, TOLL[k], 12, .18, { drive: 1.2, voices: 3, att: .12, rel: .4 });
-        if (i % 4 === 0 && k < 3) bell(B, t, i === 4 ? 74 + 12 : 67 + 12, .13);
-        if (i === 0) ch.forEach((n, j) => violin(B, t, n + 12, STEP * 11.6, .06 + k * .02, { trem: true, swell: true, voices: 2, pan: (j - 1) * .5 }));
-        if (k === 3) chug(B, t, RUN[i] + 12, .07 + i * .008, i % 2 ? .35 : -.35);
-      }
-      if (S === 'climax') {
-        lead(B, t, i, OST, 12, .21, { drive: 1.6, voices: 2 });
-        lead(B, t, i, OST, 24, .07, { voices: 2, pan: .3 });
-        lead(B, t, i, OST, 0, .11, { voices: 3, dark: true, pan: -.3 });
-        if (i % 4 === 0) bell(B, t, ch[i / 4] + 24, .08);
-        if (lb === 31 && i >= 8) chug(B, t, RUN[i] + 12, .1, 0);
-      }
-    }
-    return { bpm: BPM, steps: SPB, makeBus, play, introBars: INTRO, bars: INTRO + 32, chordAt };
-  })();
-
   // ---------- Game track: 125 BPM, A minor, one-bar count-in then a 16-bar loop ----------
   const arcade = (() => {
     const BPM = 125, STEP = 60 / BPM / 4;
@@ -934,10 +650,9 @@
   let musicGain = 1;          // shared loudness correction for the rendered tracks
 
   const SONGS = {
-    winter: { song: winter, name: 'Carol of the Skies', kind: 'Violin' },
     dogfight: { song: arcade, name: 'Dogfight', kind: 'Electronic' },
   };
-  if (!SONGS[prefs.track]) prefs.track = 'winter';
+  if (!SONGS[prefs.track]) prefs.track = 'dogfight';
   const barOf = S => 60 / S.bpm / 4 * (S.steps || 16);
 
   const bgm = (() => {

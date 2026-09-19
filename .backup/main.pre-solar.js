@@ -92,23 +92,13 @@
   }
 
   // ---------- Smooth scrolling ----------
-  // Every wheel tick and swipe goes through the sticky-section controller first (see "Sticky sections")
-  let sticky = null;
   const lenis = window.Lenis && !reduced
-    ? new window.Lenis({ lerp: .1, wheelMultiplier: .9, smoothWheel: true, syncTouch: false, virtualScroll: e => (sticky ? sticky.wheel(e) : true) })
+    ? new window.Lenis({ lerp: .1, wheelMultiplier: .9, smoothWheel: true, syncTouch: false })
     : null;
   const currentScroll = () => (lenis ? lenis.scroll : window.scrollY);
   // A nav jump across two or more sections is one continuous flight (plane.js flies it); the page
   // scroll stays put until the plane lands, then snaps to the destination.
   const jump = Flight.jump = { active: false, id: 0, from: 0, to: 0, p: 0, y: 0, t0: 0, dur: 1 };
-  // An automatic flight (a hop, a landing, a settle) in progress: nothing the reader scrolls can interrupt it
-  let flying = false, flyT = 0;
-  function glide(y, opts) {
-    flying = true;
-    flyT = lastT;
-    const done = opts.onComplete;
-    lenis.scrollTo(y, { ...opts, onComplete: () => { flying = false; if (done) done(); } });
-  }
   function startJump(from, to) {
     jump.id++;
     jump.active = true;
@@ -196,8 +186,8 @@
       const near = clamp(Math.round(tl.from + tl.e), 0, ids.length - 1);
       if (Math.abs(i - near) >= 2) {
         pendingGo = i;
-        glide(Flight.rests[near], {
-          duration: 2.4, easing: easeInOutSine,
+        lenis.scrollTo(Flight.rests[near], {
+          duration: 1.6, easing: easeInOutSine,
           onComplete: () => { if (pendingGo === i) { pendingGo = -1; goTo(i); } },
         });
         return;
@@ -207,173 +197,17 @@
       if (instant) { lenis.scrollTo(target, { immediate: true, force: true }); return; }
       const hops = Math.abs(i - (tl.from + tl.e));
       if (parked >= 0 && Math.abs(i - parked) === 1) {
-        glide(target, { duration: hopWarp.duration, easing: hopWarp.ease });
+        lenis.scrollTo(target, { duration: hopWarp.duration, easing: hopWarp.ease });
         return;
       }
       // mid-flight: a slow, film-like flight; longer moves cruise
       const duration = hops <= 1.2 ? clamp(2.2 + hops * 3, 2.6, 5.4) : clamp(1.6 + hops * 2.6, 3, 16);
-      glide(target, { duration, easing: hops > 1.2 ? easeCruise : easeInOutSine });
+      lenis.scrollTo(target, { duration, easing: hops > 1.2 ? easeCruise : easeInOutSine });
     } else {
       window.scrollTo({ top: target, behavior: reduced || instant ? 'auto' : 'smooth' });
     }
   }
   Flight.goTo = goTo;
-
-  // ---------- Sticky sections ----------
-  // A parked section holds still: a stray wheel tick, trackpad drift or a small swipe never moves the plane.
-  // Deliberate scrolling fills up a throttle instead (about three firm scrolls, or four wheel clicks), and
-  // when it's full the plane takes off and flies the whole hop on its own, slowly. A section taller than
-  // the screen still scrolls inside its column first. If the page is left part-way through a hop (the
-  // scrollbar, a resize), the plane settles itself: past 80% it lands on the next section, under 20% it
-  // goes back, in between it carries on the way it was going.
-  sticky = lenis && (() => {
-    const QUIET = 180;                               // ms without input that ends one wheel gesture
-    const CAP = .42;                                 // the most one gesture can add, so it takes three
-    const PER_PX = { wheel: 1 / 330, touch: 1 / 190 };
-    const HOLD = 850, LEAK = .8;                     // the throttle waits a moment, then drains
-    const names = $$('.rail button').map(b => b.getAttribute('aria-label'));
-    const clips = contents.map(c => c.parentElement);
-    const hintEl = $('.fly-hint'), hintText = $('.fly-hint__text');
-    let energy = 0, dir = 0, gesture = null, lastInput = 0;
-    let strain = 0, strainEl = null, strainStr = '', hintStr = '', hintOn = false, hintP = -1;
-    let moveY = currentScroll(), moveT = performance.now(), moveDir = 1;
-    const isGame = () => document.documentElement.classList.contains('is-game');
-    const busy = () => flying || jump.active || pendingGo >= 0;
-
-    // Part-way through a hop: finish it (in direction d, or by the 80% rule when d is 0)
-    function settle(y, d) {
-      const tl = timeline(y);
-      if (tl.from === tl.to) return false;
-      const fwd = d ? d > 0 : tl.t >= .8 ? true : tl.t <= .2 ? false : moveDir > 0;
-      const target = fwd ? Flight.rests[tl.to] : Flight.restEnds[tl.from];
-      const dist = Math.abs(target - y) / Flight.hop;
-      glide(target, { duration: clamp(dist * 6.2, 1.8, 6.2), easing: easeInOutSine });
-      return true;
-    }
-    // Room left to scroll inside a tall section, in direction d (0 when parked at its end)
-    function room(i, d) {
-      const lo = Flight.rests[i], hi = Flight.restEnds[i], t = lenis.targetScroll;
-      if (t < lo - .5 || t > hi + .5) return 0;
-      return Math.max(0, d > 0 ? hi - t : t - lo);
-    }
-    function charge(d, add, i) {
-      const next = i + d;
-      if (next < 0 || next >= ids.length) return;
-      if (dir !== d) { energy = 0; dir = d; }
-      energy = Math.min(1, energy + add);
-      if (energy >= 1) {
-        energy = 0;
-        goTo(next);
-      }
-    }
-    // One wheel/swipe input. Returns the delta Lenis may scroll by, or null to hold still.
-    function input(dy, kind) {
-      const now = lastT;
-      const d = Math.sign(dy);
-      if (!d) return null;
-      if (!gesture || gesture.dir !== d || (kind === 'wheel' && now - lastInput > QUIET)) gesture = { dir: d, gained: 0, inside: false };
-      lastInput = now;
-      if (busy()) return null;
-      const y = currentScroll();
-      const i = restingAt(y);
-      if (i < 0) { settle(y, d); return null; }
-      const space = room(i, d);
-      if (space > .5) {
-        gesture.inside = true;
-        return d > 0 ? Math.min(dy, space) : Math.max(dy, -space);
-      }
-      // the scroll that carried a long section to its end doesn't count towards take-off
-      if (gesture.inside) return null;
-      const add = Math.min(CAP - gesture.gained, Math.abs(dy) * PER_PX[kind]);
-      if (add > 0) {
-        gesture.gained += add;
-        charge(d, add, i);
-      }
-      return null;
-    }
-    function wheel(e) {
-      const ev = e.event;
-      if (isGame() || ev.ctrlKey) return true;
-      if (ev.target && ev.target.closest && ev.target.closest('[data-lenis-prevent]')) return true;
-      const touch = ev.type.includes('touch');
-      if (touch && ev.type !== 'touchmove') { if (ev.type === 'touchstart') gesture = null; return true; }
-      if (!document.body.classList.contains('is-loaded')) { if (ev.cancelable) ev.preventDefault(); return false; }
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && !touch) return true;      // sideways belongs to the podium
-      const r = input(e.deltaY, touch ? 'touch' : 'wheel');
-      if (ev.cancelable) ev.preventDefault();
-      if (r === null) return false;
-      if (touch) { lenis.scrollTo(lenis.targetScroll + r, { immediate: true }); return false; }
-      e.deltaY = r;
-      return true;
-    }
-    // Keys: arrows charge the throttle like wheel clicks; Page Up/Down and Space fly straight away
-    function key(d, hard) {
-      if (busy()) return;
-      const y = currentScroll();
-      const i = restingAt(y);
-      if (i < 0) { settle(y, d); return; }
-      const space = room(i, d);
-      if (space > .5) {
-        const step = Math.min(space, hard ? innerHeight * .8 : 120);
-        lenis.scrollTo(lenis.targetScroll + d * step, { duration: .6, easing: easeInOutSine });
-        return;
-      }
-      lastInput = lastT;
-      if (hard) { energy = 0; if (i + d >= 0 && i + d < ids.length) goTo(i + d); return; }
-      charge(d, .34, i);
-    }
-    addEventListener('keydown', e => {
-      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || isGame() || !document.body.classList.contains('is-loaded')) return;
-      const t = e.target;
-      if (t.closest && t.closest('input, textarea, select, [contenteditable="true"]')) return;
-      let d = 0, hard = false;
-      switch (e.key) {
-        case 'ArrowDown': d = 1; break;
-        case 'ArrowUp': d = -1; break;
-        case 'PageDown': d = 1; hard = true; break;
-        case 'PageUp': d = -1; hard = true; break;
-        case ' ':
-          if (t.closest && t.closest('button, a, [role="button"], [role="radio"]')) return;
-          d = e.shiftKey ? -1 : 1; hard = true; break;
-        case 'Home': e.preventDefault(); goTo(0); return;
-        case 'End': e.preventDefault(); goTo(ids.length - 1); return;
-        default: return;
-      }
-      e.preventDefault();
-      key(d, hard);
-    });
-
-    function update(y, dt, now, at) {
-      if (flying && now - flyT > 400 && !lenis.isScrolling) flying = false;
-      if (now - lastInput > HOLD) energy = Math.max(0, energy - LEAK * dt);
-      if (busy()) energy = 0;
-      // left part-way through a hop: settle once the page has been still for a moment
-      if (Math.abs(y - moveY) > .5) { moveDir = y > moveY ? 1 : -1; moveY = y; moveT = now; }
-      else if (!busy() && !isGame() && now - moveT > 380 && now - lastInput > 380) settle(y, 0);
-
-      // the parked section leans a little into the scroll as the throttle fills, and springs back
-      const target = -dir * energy * 24;
-      strain += (target - strain) * Math.min(1, dt * 9);
-      if (!target && Math.abs(strain) < .05) strain = 0;
-      const el = clips[at] || null;
-      if (strainEl && strainEl !== el) { strainEl.style.transform = ''; strainStr = ''; }
-      strainEl = el;
-      const str = strain ? `translate3d(0,${strain.toFixed(1)}px,0)` : '';
-      if (el && str !== strainStr) { strainStr = str; el.style.transform = str; }
-
-      // "Keep scrolling to fly to …" with a gauge that fills
-      const on = energy > .02 && !busy() && at >= 0;
-      if (on !== hintOn) { hintOn = on; hintEl.classList.toggle('is-on', on); }
-      if (on) {
-        const next = clamp(at + dir, 0, ids.length - 1);
-        const text = `Keep scrolling${dir < 0 ? ' up' : ''} to fly to ${names[next]}`;
-        if (text !== hintStr) { hintStr = text; hintText.textContent = text; hintEl.classList.toggle('is-up', dir < 0); }
-        const p = Math.round(energy * 200) / 200;
-        if (p !== hintP) { hintP = p; hintEl.style.setProperty('--p', p); }
-      }
-    }
-    return { wheel, update };
-  })();
   $$('[data-goto]').forEach(el => el.addEventListener('click', e => {
     e.preventDefault();
     goTo(el.dataset.goto);
@@ -412,7 +246,7 @@
         for (let i = 0; i < (k ? 70 : 240); i++) {
           const x = Math.random() * S, y = Math.random() * S;
           const r = k ? rnd(.8, 1.7) : rnd(.35, .9);
-          const tint = Math.random() < .25 ? '255,210,218' : Math.random() < .3 ? '255,228,217' : '255,246,234';
+          const tint = Math.random() < .2 ? '255,214,170' : Math.random() < .3 ? '190,210,255' : '240,242,255';
           if (k) {
             const glow = g.createRadialGradient(x, y, 0, x, y, r * 5);
             glow.addColorStop(0, `rgba(${tint},.35)`);
@@ -434,7 +268,7 @@
         btn.setAttribute('aria-label', night ? 'Switch to day mode' : 'Switch to night mode');
         btn.title = night ? 'Day mode' : 'Night mode';
       }
-      if (meta) meta.content = night ? '#17100d' : '#fdf0e0';
+      if (meta) meta.content = night ? '#07090F' : '#F3E8D6';
       if (night) drawStars();
     }
     function apply(next) {
@@ -967,7 +801,6 @@
     if (i === active) return;
     active = i;
     sections.forEach((s, k) => s.classList.toggle('is-current', k === i));
-    document.documentElement.dataset.side = sections[i].dataset.side;      // the sun and moon keep to the empty side
     const id = ids[i];
     navLinks.forEach(a => a.classList.toggle('is-active', a.dataset.goto === id));
     railBtns.forEach(b => b.classList.toggle('is-active', b.dataset.goto === id));
@@ -998,7 +831,6 @@
 
     if (document.body.classList.contains('is-loaded')) {
       setActive(jump.active ? (jump.p < .5 ? jump.from : jump.to) : tl.t > .5 ? tl.to : tl.from);
-      if (sticky) sticky.update(y, dt, now, tl.from === tl.to ? tl.from : restingAt(y));
       stage.update(y, dt);
       const at = Flight.settled;
       if (at < 0) { settleTime = 0; if (clicked >= 0) { travelled = true; clicked = -1; } }

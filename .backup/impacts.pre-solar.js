@@ -52,7 +52,7 @@
     const r = Math.max(16, Math.min(46, locked.size)) + Math.sin(t * 12) * 2;
     const k = r * .45;
     ctx.lineWidth = 2.2;
-    ctx.strokeStyle = '#f74a20';
+    ctx.strokeStyle = '#E5484D';
     ctx.lineCap = 'round';
     [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([sx, sy]) => {
       ctx.beginPath();
@@ -61,8 +61,8 @@
       ctx.lineTo(x + sx * (r - k), y + sy * r);
       ctx.stroke();
     });
-    ctx.font = '700 10px Outfit, system-ui, sans-serif';
-    ctx.fillStyle = '#f74a20';
+    ctx.font = '600 9px "JetBrains Mono", monospace';
+    ctx.fillStyle = '#E5484D';
     ctx.textAlign = 'center';
     ctx.fillText('LOCK', x, y - r - 6);
   }
@@ -73,7 +73,7 @@
     ctx.strokeStyle = 'rgba(255,250,240,.75)';
     ctx.lineWidth = 4;
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
-    ctx.strokeStyle = hot ? '#ff6d34' : '#091929';
+    ctx.strokeStyle = hot ? '#FF7A1A' : '#2A211A';
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
     for (let k = 0; k < 4; k++) {
@@ -160,7 +160,7 @@
       if (b.type === 3) {
         b.vy *= 1 - dt * 1.5;
         ctx.globalAlpha = Math.sin(t * Math.PI) * (night ? .25 : .3);
-        ctx.fillStyle = night ? '#8d8178' : '#6b645c';
+        ctx.fillStyle = night ? '#9AA0AE' : '#8F8478';
         ctx.beginPath();
         ctx.arc(b.x, b.y, b.size * (.6 + t * 1.4), 0, Math.PI * 2);
         ctx.fill();
@@ -183,7 +183,7 @@
         ctx.rotate(b.rot);
         ctx.fillStyle = b.type === 2
           ? (t < .35 ? '#FFB35A' : night ? '#6B5A4C' : '#3A2A20')
-          : (b.size > 2.6 ? (night ? '#2f211a' : '#fbe3cd') : (night ? '#5B4A3E' : '#8C7A69'));
+          : (b.size > 2.6 ? (night ? '#2A3140' : '#EFE3D1') : (night ? '#5B4A3E' : '#8C7A69'));
         ctx.fillRect(-b.size / 2, -b.size / 3, b.size, b.size * .66);
         ctx.restore();
       }
