@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Hrithik Lega — AI Developer</title>
   <meta name="description" content="Hrithik Lega is an AI Developer in Melbourne building AI agents, browser automation and integrations that run unattended.">
-  <meta name="theme-color" content="#fdf0e0">
+  <meta name="theme-color" content="#F3E8D6">
   <script>
     (function () {
       var d = document.documentElement, t = null;
@@ -13,20 +13,23 @@
       try { t = localStorage.getItem('hl-theme'); } catch (e) {}
       if (t !== 'night' && t !== 'day') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'night' : 'day';
       d.dataset.theme = t;
-      if (t === 'night') document.querySelector('meta[name="theme-color"]').content = '#17100d';
+      if (t === 'night') document.querySelector('meta[name="theme-color"]').content = '#07090F';
     })();
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Yellowtail&family=Sacramento&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=20260919s">
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css?v=20260919">
 </head>
 <body>
 
   <!-- Atmosphere -->
   <div class="bg" aria-hidden="true">
-    <canvas class="bg__mesh"></canvas>
+    <span class="bg__night"></span>
     <span class="bg__sun"></span>
+    <span class="bg__orb bg__orb--a"></span>
+    <span class="bg__orb bg__orb--b"></span>
+    <span class="bg__orb bg__orb--c"></span>
     <span class="bg__stars"><i></i><i></i></span>
     <span class="bg__moon"></span>
   </div>
@@ -38,13 +41,7 @@
     </span>
     <span class="podium-hint__text"><b>Defend the tower</b><small>Scroll sideways to defend</small></span>
   </button>
-  <div class="fly-hint" aria-hidden="true">
-    <span class="fly-hint__gauge">
-      <svg class="fly-hint__ring" viewBox="0 0 36 36"><circle class="fly-hint__track" cx="18" cy="18" r="15.5"/><circle class="fly-hint__fill" cx="18" cy="18" r="15.5" pathLength="1"/></svg>
-      <svg class="fly-hint__arrow" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </span>
-    <span class="fly-hint__text">Keep scrolling to fly on</span>
-  </div>
+  <div class="grain" aria-hidden="true"></div>
 
   <!-- Preloader -->
   <div class="loader" id="loader" aria-hidden="true">
@@ -64,7 +61,7 @@
   <!-- Navigation -->
   <header class="nav">
     <a class="brand" href="#home" data-goto="home" aria-label="Hrithik Lega — back to top">
-      <span class="brand__mark" aria-hidden="true"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="20" fill="currentColor"/><g stroke="currentColor" stroke-width="7" stroke-linecap="round"><path d="M50 8v16M50 76v16M8 50h16M76 50h16M20 20l11 11M69 69l11 11M20 80l11-11M69 31l11-11"/></g></svg></span>
+      <span class="brand__dot" aria-hidden="true"></span>
       <span class="brand__name">Hrithik Lega</span>
     </a>
     <nav class="nav__links" aria-label="Primary">
@@ -112,9 +109,9 @@
     <svg class="nav__ring" aria-hidden="true" preserveAspectRatio="none">
       <defs>
         <linearGradient id="navRingGrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stop-color="#f74a20"/>
-          <stop offset=".55" stop-color="#ff6d34"/>
-          <stop offset="1" stop-color="#ff839b"/>
+          <stop offset="0" stop-color="#C8553D"/>
+          <stop offset=".55" stop-color="#E07A5F"/>
+          <stop offset="1" stop-color="#C99A4B"/>
         </linearGradient>
       </defs>
       <path class="nav__ring-track"/>
@@ -200,7 +197,6 @@
               </div>
               <p>It started with games. Chasing more performance, I tweaked everything — even registry values I shouldn’t have touched — until Windows broke. Fixing it through YouTube, XDA guides and forum threads is when I became obsessed with computers. Beautiful, animated websites pulled me into code; AI that writes code from my specs let me pour my energy into design and logic.</p>
               <p>Today I build AI agents, browser-automation microservices and API integrations that run in production — self-verifying, idempotent and fail-loud. I want every build to make a measurable impact.</p>
-              <p class="about__sign">Hrithik <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></p>
             </div>
             <div class="about__side">
               <span class="eyebrow">Flight path</span>
@@ -461,12 +457,11 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.min.js"></script>
-  <script src="js/main.js?v=20260919s"></script>
-  <script src="js/gradient.js?v=20260919s"></script>
-  <script src="js/sound.js?v=20260919s"></script>
-  <script src="js/impacts.js?v=20260919s"></script>
-  <script src="js/dogfight.js?v=20260919s"></script>
-  <script src="js/game.js?v=20260919s"></script>
-  <script src="js/plane.js?v=20260919s"></script>
+  <script src="js/main.js?v=20260919"></script>
+  <script src="js/sound.js?v=20260919"></script>
+  <script src="js/impacts.js?v=20260919"></script>
+  <script src="js/dogfight.js?v=20260919"></script>
+  <script src="js/game.js?v=20260919"></script>
+  <script src="js/plane.js?v=20260919"></script>
 </body>
 </html>

@@ -184,7 +184,7 @@
       resBest.textContent = best && score > 0 ? 'New best score!' : `Best: ${scores.best}`;
       resBest.classList.toggle('is-new', best && score > 0);
       confetti.innerHTML = '';
-      const colours = ['#f74a20', '#ff839b', '#fbbd76', '#ef4a76', '#fcaf7b', '#ff6d34'];
+      const colours = ['#FF8526', '#C8553D', '#F2C14E', '#2F5D8C', '#7CC6B8', '#FFF1D8'];
       for (let i = 0; i < 46; i++) {
         const c = document.createElement('i');
         c.style.setProperty('--x', `${(Math.random() * 2 - 1) * 190}px`);
