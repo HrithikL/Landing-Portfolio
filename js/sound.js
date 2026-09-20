@@ -15,21 +15,23 @@
   const AC = window.AudioContext || window.webkitAudioContext;
   const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
   const btn = document.querySelector('.sound-toggle');
+  const navEl = document.querySelector('.nav');
   const KEY = 'hl-audio';
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
   const rnd = (a, b) => a + Math.random() * (b - a);
   const hz = n => 440 * Math.pow(2, (n - 69) / 12);
   const VOLUME = .8;
   const NOISE_RATE = 32000;          // sample rate of the shared noise buffer
+  const volCurve = v => Math.pow(clamp(v, 0, 100) / 100, 2);   // perceptual: half-travel sounds like half, not silence
 
-  const prefs = { music: true, fx: true, track: '' };
+  const prefs = { music: true, fx: true, track: '', musicVol: 100, fxVol: 100 };
   try {
     const saved = JSON.parse(localStorage.getItem(KEY));
     if (saved) Object.assign(prefs, saved);
     else if (localStorage.getItem('hl-sound') === 'off') prefs.music = prefs.fx = false;
   } catch (e) { /* storage blocked */ }
 
-  let ctx = null, master = null, fxBus = null, musicBus = null, musicDuck = null, engine = null, bg = null, output = null, limiterNode = null;
+  let ctx = null, master = null, fxBus = null, fxVol = null, musicBus = null, musicVol = null, musicDuck = null, analyser = null, engine = null, bg = null, output = null, limiterNode = null;
   const anyOn = () => prefs.music || prefs.fx;
   function paintButton() {
     if (!btn) return;
@@ -341,14 +343,29 @@
     master.connect(glue); glue.connect(limiter); limiter.connect(out); out.connect(ctx.destination);
     output = out;
     limiterNode = limiter;
+    // fx: on/off gate (fxBus) feeds a perceptual volume gain (fxVol), then the master chain
     fxBus = ctx.createGain();
     fxBus.gain.value = prefs.fx ? 1 : 0;
-    fxBus.connect(master);
+    fxVol = ctx.createGain();
+    fxVol.gain.value = volCurve(prefs.fxVol);
+    fxBus.connect(fxVol);
+    fxVol.connect(master);
     musicDuck = ctx.createGain();
     musicDuck.connect(master);
+    // the visualiser analyser sits inline on the music chain (post-volume, pre-duck) so it reads
+    // what's actually audible but isn't disturbed by the duck ride under explosions
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0;        // hand-rolled attack/release smoothing in the viz loop instead
+    analyser.connect(musicDuck);
+    // music: on/off gate (musicBus) feeds a perceptual volume gain (musicVol) - so switching music
+    // back on restores the slider's level rather than snapping to full blast
+    musicVol = ctx.createGain();
+    musicVol.gain.value = volCurve(prefs.musicVol);
+    musicVol.connect(analyser);
     musicBus = ctx.createGain();
     musicBus.gain.value = prefs.music ? 1 : 0;
-    musicBus.connect(musicDuck);
+    musicBus.connect(musicVol);
     engine = buildEngine(.0);
     bg = buildEngine(0, true);
   }
@@ -411,6 +428,52 @@
     return { out, pan, lp, lfo, o1, o2, bp, wash };
   }
 
+  // =========================================================
+  // Nav border visualiser: reduces the music to 8 bands (log-spaced 40 Hz-12 kHz, so the split
+  // reads like octaves rather than raw bin index), eases each with a fast attack and slow release
+  // so it doesn't strobe, and writes the result onto the CSS custom properties the nav border
+  // contract expects (see the comment above .nav[data-viz="on"] in styles.css). Only runs while
+  // music is actually playing - no idle rAF loop.
+  // =========================================================
+  const VIZ_BANDS = 8;
+  const vizLevels = new Array(VIZ_BANDS).fill(0);
+  let vizLevel = 0, vizRAF = 0, vizData = null, vizEdges = null;
+  function vizStep() {
+    if (!bgm.playing) { stopViz(); return; }
+    if (!vizData) vizData = new Uint8Array(analyser.frequencyBinCount);
+    if (!vizEdges) {
+      const lo = 40, hi = Math.min(ctx.sampleRate / 2, 12000);
+      vizEdges = Array.from({ length: VIZ_BANDS + 1 }, (_, i) => lo * Math.pow(hi / lo, i / VIZ_BANDS));
+    }
+    analyser.getByteFrequencyData(vizData);
+    const binHz = ctx.sampleRate / analyser.fftSize;
+    let sumLevel = 0;
+    for (let b = 0; b < VIZ_BANDS; b++) {
+      const i0 = Math.max(0, Math.floor(vizEdges[b] / binHz));
+      const i1 = Math.min(vizData.length - 1, Math.max(i0 + 1, Math.floor(vizEdges[b + 1] / binHz)));
+      let sum = 0;
+      for (let i = i0; i <= i1; i++) sum += vizData[i];
+      const raw = sum / (i1 - i0 + 1) / 255;
+      vizLevels[b] += (raw - vizLevels[b]) * (raw > vizLevels[b] ? .6 : .08);
+      sumLevel += vizLevels[b];
+      navEl.style.setProperty(`--nav-viz-${b}`, vizLevels[b].toFixed(3));
+    }
+    const rawLevel = sumLevel / VIZ_BANDS;
+    vizLevel += (rawLevel - vizLevel) * (rawLevel > vizLevel ? .6 : .08);
+    navEl.style.setProperty('--nav-level', vizLevel.toFixed(3));
+    vizRAF = requestAnimationFrame(vizStep);
+  }
+  function startViz() {
+    if (!navEl || !analyser || vizRAF) return;
+    navEl.dataset.viz = 'on';
+    vizRAF = requestAnimationFrame(vizStep);
+  }
+  function stopViz() {
+    if (vizRAF) cancelAnimationFrame(vizRAF);
+    vizRAF = 0;
+    if (navEl) delete navEl.dataset.viz;
+  }
+
   // ---------- Public API (all calls are no-ops until sound is live) ----------
   const Sfx = {
     get state() { return ctx ? ctx.state : 'locked'; },
@@ -461,6 +524,7 @@
     ping(pan) { play('ping', { pan, gap: .05 }); },
     ui() { play('ui', { gap: .05 }); },
     click(pan) { play('click', { pan, gain: .45, gap: .05, rate: rnd(.92, 1.1) }); },
+    get visualizing() { return !!vizRAF; },
   };
 
 
@@ -515,6 +579,7 @@
       const p = e.a.play();
       if (p) p.catch(() => {});
       fadeTo(e, LEVEL, 1.6);
+      startViz();
     }
     function release(e, fade) {
       fadeTo(e, 0, fade);
@@ -531,6 +596,7 @@
       if (!cur) return;
       const e = cur;
       cur = null;
+      stopViz();
       release(e, fade);
     }
     // Change the song: the old one fades out while the new one fades in
@@ -549,6 +615,7 @@
       prefs.track = id;
       onTrack();
       if (want && !held && liveMusic()) begin(id);
+      else stopViz();
     }
     return {
       start, stop, switchTo,
@@ -593,17 +660,25 @@
       <input type="checkbox" data-pref="fx"><i aria-hidden="true"></i>
     </label>
     <p class="sound-menu__status" aria-live="polite" hidden></p>
-    <div class="sound-menu__mode">
-      <span><b>Experience</b><small>Peaceful skies or the full dogfight</small></span>
-      <div class="seg" role="radiogroup" aria-label="Experience">
-        <button type="button" role="radio" data-mode="peaceful">Peaceful</button>
-        <button type="button" role="radio" data-mode="chaotic">Chaotic</button>
-      </div>
+    <div class="sound-menu__vol">
+      <label class="sound-menu__vol-label" for="vol-music"><b>Music volume</b><small>How loud the soundtrack plays</small></label>
+      <span class="sound-menu__vol-row">
+        <input type="range" min="0" max="100" id="vol-music" class="vol-slider" data-pref="musicVol" aria-label="Music volume">
+        <output class="sound-menu__vol-value" for="vol-music">100</output>
+      </span>
+    </div>
+    <div class="sound-menu__vol">
+      <label class="sound-menu__vol-label" for="vol-vfx"><b>Effects volume</b><small>Engine, guns, explosions</small></label>
+      <span class="sound-menu__vol-row">
+        <input type="range" min="0" max="100" id="vol-vfx" class="vol-slider" data-pref="fxVol" aria-label="Effects volume">
+        <output class="sound-menu__vol-value" for="vol-vfx">100</output>
+      </span>
     </div>`;
   document.body.appendChild(menu);
   const status = menu.querySelector('.sound-menu__status');
   statusEl.set = text => { status.textContent = text; status.hidden = !text; };
-  const boxes = [...menu.querySelectorAll('input')];
+  const boxes = [...menu.querySelectorAll('input[type="checkbox"]')];
+  const sliders = [...menu.querySelectorAll('.vol-slider')];
   const navTrack = document.querySelector('.track-toggle');
   const navTrackLabel = navTrack && navTrack.querySelector('.track-toggle__label');
   const songMenu = document.createElement('div');
@@ -618,8 +693,20 @@
     </button>`).join('');
   document.body.appendChild(songMenu);
   const trackBtns = [...songMenu.querySelectorAll('[data-track]')];
+  const paintVol = () => {
+    sliders.forEach(s => {
+      const v = prefs[s.dataset.pref];
+      s.value = v;
+      // Chrome draws the filled part of the track from --p (0..1); Firefox fills it natively
+      // via ::-moz-range-progress. Without this the slider sits at the CSS fallback of 50%.
+      s.style.setProperty('--p', (clamp(v, 0, 100) / 100).toFixed(3));
+      const out = menu.querySelector(`output[for="${s.id}"]`);
+      if (out) out.value = String(v);
+    });
+  };
   const paintMenu = () => {
     boxes.forEach(b => { b.checked = prefs[b.dataset.pref]; });
+    paintVol();
     const s = SONGS[prefs.track];
     trackBtns.forEach(b => b.setAttribute('aria-checked', String(b.dataset.track === prefs.track)));
     songMenu.classList.toggle('is-muted', !prefs.music);
@@ -649,6 +736,23 @@
     }
   }
   boxes.forEach(b => b.addEventListener('change', () => setPref(b.dataset.pref, b.checked)));
+  // Volume sliders: the live gain follows the drag, the saved value only lands on release
+  function setVol(key, value, persist) {
+    prefs[key] = clamp(value, 0, 100);
+    if (persist) { try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch (e) { /* storage blocked */ } }
+    if (!ctx) return;
+    const g = (key === 'musicVol') ? musicVol : fxVol;
+    if (g) g.gain.setTargetAtTime(volCurve(prefs[key]), ctx.currentTime, .05);
+  }
+  sliders.forEach(s => {
+    const out = menu.querySelector(`output[for="${s.id}"]`);
+    s.addEventListener('input', () => {
+      setVol(s.dataset.pref, +s.value, false);
+      s.style.setProperty('--p', (clamp(+s.value, 0, 100) / 100).toFixed(3));
+      if (out) out.value = s.value;
+    });
+    s.addEventListener('change', () => setVol(s.dataset.pref, +s.value, true));
+  });
   // Picking a soundtrack also switches the music on
   function pickTrack(id) {
     if (!SONGS[id]) return;
@@ -732,11 +836,8 @@
     renderBank();
   }
   // The experience mode picks the song: Dawn when peaceful, Awake when chaotic. Music that is switched off stays off.
-  const modeBtns = [...menu.querySelectorAll('[data-mode]')];
-  const paintMode = () => { const m = window.Mode ? window.Mode.value : 'chaotic'; modeBtns.forEach(b => b.setAttribute('aria-checked', String(b.dataset.mode === m))); };
-  modeBtns.forEach(b => b.addEventListener('click', () => { if (window.Mode) window.Mode.set(b.dataset.mode); }));
+  // (The Experience control itself is a standalone nav button now, wired elsewhere - this just reacts to it.)
   addEventListener('modechange', e => {
-    paintMode();
     const id = MODE_SONG[e.detail.mode] || 'dawn';
     if (prefs.track !== id) {
       if (ctx && prefs.music) bgm.switchTo(id);
@@ -745,7 +846,6 @@
       paintMenu();
     } else if (ctx && prefs.music) bgm.start();
   });
-  paintMode();
 
   function unlock() {
     if (!ctx) setup();
@@ -761,7 +861,7 @@
   document.addEventListener('visibilitychange', () => {
     if (!ctx) return;
     bgm.pause(document.hidden);
-    if (document.hidden) ctx.suspend();
-    else if (anyOn()) ctx.resume();
+    if (document.hidden) { ctx.suspend(); stopViz(); }
+    else { if (anyOn()) ctx.resume(); if (bgm.playing) startViz(); }
   });
 })();
