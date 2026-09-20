@@ -2117,6 +2117,9 @@
   // (the plane shrinks) and come back, so the whole plane stays on screen. It always faces its travel direction.
   let halfW = 1, halfH = 1, scale = 1, mobile = false, routeRY = -.04;
   let restPts = [], downRoutes = [], upRoutes = [];
+  // A jump/show request can be handed a stale or out-of-range section index (e.g. a request queued
+  // just before a resize rebuilds restPts to a different length) — clamp rather than crash on undefined.
+  const restAt = i => restPts[clamp(Math.round(i), 0, restPts.length - 1)];
 
   function route(points, endSide) {
     const start = points[0], end = points[points.length - 1];
@@ -2446,7 +2449,7 @@
     jump.dark = false;
     plane.visible = true;
     if (peaceful()) { beginShow(J); return; }
-    const A = restPts[J.from].clone(), B = restPts[J.to].clone();
+    const A = restAt(J.from).clone(), B = restAt(J.to).clone();
     const a = sideSign(J.from), b = sideSign(J.to);
     const Y = v => (routeRY + v) * halfH;
     const dv = mobile ? .2 : 0;                      // phones: the battle stays above the content strip
@@ -2523,7 +2526,7 @@
   const SHOW_LIV = [0, 2, 5, 6, 7, 9];
   const showA = new V3();
   function beginShow(J) {
-    const A = restPts[J.from].clone(), B = restPts[J.to].clone();
+    const A = restAt(J.from).clone(), B = restAt(J.to).clone();
     const a = sideSign(J.from), b = sideSign(J.to);
     const Y = v => (routeRY + v) * halfH;
     const dv = mobile ? .16 : .02;                 // phones: the run sits above the content strip
@@ -3142,7 +3145,7 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
     p.rig.visible = burn < .999;
     const R = PODIUM_R * scale * introE, T = 1.6 * scale * introE;
     const top = .04 * T;
-    const rest = restPts[index];
+    const rest = restAt(index);
     const home = index === 0;
     p.rig.position.set(rest.x + (home ? podShift0 : 0), rest.y - top - groundHeight(GROUND_PITCH) * sPlane + (home ? podDrop0 : 0), rest.z + (home ? podNear0 : 0));
     parkRig(p.rig, spins[index]);
