@@ -48,6 +48,8 @@ Full palette (all tokens, both themes), sky/aurora gradient colours, and voice g
 
 ## Current state / known gaps
 
+**2026-09-20: a large orchestrated change set landed — read `docs/handover/2026-09-20-orchestrated-change-set.md` first.** It covers the aurora rework, podium/camera levelling, responsive scaling, credits accordions, the radium nav treatment, the rainbow nav border + audio visualizer, scroll-threshold and tile-blocking logic, volume sliders, and the flight choreography. It also carries the per-agent cost/token ledger and, importantly, a list of what has **not** been visually verified. Commit `ceab5cc` (flight animations) is explicitly flagged as unverified and is safe to revert on its own.
+
 - Site itself is functionally complete post-redesign; no known open bugs.
 - `data/news.json` is 100% placeholder (`sample: true`) — the real fetch/verify/publish pipeline is only a spec, in `docs/news-pipeline.md`, not built.
 - No image-generation pipeline yet for social/gallery images — `Design-Language.md` exists specifically so generated images can match the site.
