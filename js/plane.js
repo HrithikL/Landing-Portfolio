@@ -2202,7 +2202,7 @@
   const spinTargets = Flight.sides.map(() => 0);
   let parkedAt = 0, podiumRect = null;
   const overPodium = (x, y) => !!podiumRect && x >= podiumRect.l && x <= podiumRect.r && y >= podiumRect.t && y <= podiumRect.b;
-  const defense = { on: false, armed: true, t: 0, section: -1, userSpin: 0, firing: false, missile: 0 };
+  const defense = { on: false, armed: true, t: 0, section: -1, userSpin: 0, firing: false, missile: 0, menu: false };
   const addSpin = amount => {
     spinTargets[parkedAt] += amount;
     if (defense.on) defense.userSpin += Math.abs(amount);
@@ -2404,8 +2404,47 @@
     out.set(u, v, .5).unproject(camera).sub(camera.position);
     return out.multiplyScalar((z - camera.position.z) / out.z).add(camera.position);
   };
-  const ourAt = (jp, out) => jump.curve.getPointAt(cruiseEase(clamp(jp, 0, 1)), out);
+  // The peaceful show is flown as two legs with the plane out of sight between them, so one curve is not
+  // enough: segOf() says which curve is being flown, how far along it, and whether we are in the blackout.
+  // A battle jump has no legs and is one curve end to end.
+  const LEG_R = .16;                                 // ramp at the standing-start / standing-stop end of a leg
+  const legIn = t => { const v = 1 / (1 - LEG_R / 2); return t < LEG_R ? v * t * t / (2 * LEG_R) : v * (t - LEG_R / 2); };
+  const legOut = t => 1 - legIn(1 - t);
+  const seg = { c: null, s: 0, L: 1, i: 0, dark: false };
+  function segOf(jp) {
+    const g = jump.legs;
+    seg.dark = false;
+    if (!g) {
+      seg.c = jump.curve; seg.L = jump.length; seg.i = 0;
+      seg.s = cruiseEase(clamp(jp, 0, 1));
+      return seg;
+    }
+    if (jp < g.in) {
+      seg.c = g.a; seg.L = g.aLen; seg.i = 0;
+      if (jp <= g.out) seg.s = legIn(clamp(jp / g.out, 0, 1));
+      else { seg.s = 1; seg.dark = true; }           // gone: parked at the far end of the first leg
+      return seg;
+    }
+    seg.c = g.b; seg.L = g.bLen; seg.i = 1;
+    seg.s = legOut(clamp((jp - g.in) / (1 - g.in), 0, 1));
+    return seg;
+  }
+  const ourAt = (jp, out) => { const g = segOf(jp); return g.c.getPointAt(g.s, out); };
+  // Closest a planned path comes to our own route over [j0, j1]; safeGap() is the clearance we insist on
+  const cq = new V3(), co = new V3();
+  const safeGap = () => (2.4 + .7 * 2.2) * scale * 1.3;
+  const clearance = (posAt, j0, j1) => {
+    let m = Infinity;
+    for (let j = Math.max(0, j0); j <= Math.min(1, j1); j += .003) m = Math.min(m, posAt(j, cq).distanceTo(ourAt(j, co)));
+    return m;
+  };
   function beginJump(J) {
+    // a new flight owns the stage: no fighter or wingman from the last one outlives it (its path closure is
+    // tied to a jump progress that no longer means anything)
+    if (dogfight && dogfight.raid) dogfight.raid.clear();
+    if (jump.team) jump.team.length = 0;
+    jump.dark = false;
+    plane.visible = true;
     if (peaceful()) { beginShow(J); return; }
     const A = restPts[J.from].clone(), B = restPts[J.to].clone();
     const a = sideSign(J.from), b = sideSign(J.to);
@@ -2458,142 +2497,208 @@
   }
 
   // ---------- Air show: the peaceful long jump ----------
-  // A four-plane display team crosses the sky, barrel-rolling as it comes; our plane climbs out and slides into
-  // the head of the formation. Together they fly a loop and a formation roll trailing coloured smoke, then the
-  // team splits in a bomb burst and our plane comes in to land. Nobody fires a shot.
-  const SHOW_SLOTS = [[-2.7, -.2, -3.3], [-2.7, -.2, 3.3], [-5.4, -.45, -6.6], [-5.4, -.45, 6.6]].map(v => new V3(...v));
-  const SHOW_BURST = [[.1, .85, -1], [.1, .85, 1], [-.2, -.35, -1], [-.2, -.35, 1]].map(v => new V3(...v).normalize());
-  const SHOW_SMOKE = [col(0xFF6D34), col(0xFF839B), col(0xFBBD76), col(0xFFF6EA)];
+  // Two legs with the plane out of sight between them. It takes off, turns onto the centre of the screen and
+  // flies straight down it into the deep distance; fighters come the other way out of the vanishing point and
+  // it shoots every one of them down on the way. It disappears into the sky, and half a second later it is
+  // back out of the middle of the screen at the head of a support flight curved back on either side. They
+  // break outwards and it comes in to land. Nothing is left on stage: every fighter dies before the blackout,
+  // and the support flight is off screen before the wheels touch.
+  const GAP = .5;                                  // seconds out of sight between the two legs
+  // A six-ship arc: each pair steps further out and further back, and the sweep grows faster than the span,
+  // so the flight reads as a shallow crescent rather than a straight vee. The tips also sit a little higher,
+  // and the two sides are not quite level, so there is stagger in both depth and height.
+  const SUPPORT = [];
+  for (let k = 1; k <= 3; k++) {
+    for (const sd of [1, -1]) {
+      SUPPORT.push(new V3(-(1.15 * k + .62 * k * k), .22 * k + (sd > 0 ? .1 : -.14), sd * (2.55 * k - .16 * k * k)));
+    }
+  }
+  // The break: the inner pair climbs away, the middle pair dives, the tips go wide and level
+  const SUPPORT_BURST = SUPPORT.map((v, i) => {
+    const pair = i >> 1;
+    return new V3(.12, pair === 0 ? .95 : pair === 1 ? -.7 : .25, Math.sign(v.z) * (pair === 2 ? 1.5 : 1)).normalize();
+  });
+  const SHOW_SMOKE = [0xFF6D34, 0xFF839B, 0xFBBD76, 0xB28DFF, 0x3ECFA8, 0x7CC8FF].map(h => col(h));
   const OUR_SMOKE = col(0xF74A20);
-  const showQ = new THREE.Quaternion(), showM = new THREE.Matrix4(), showRoll = new THREE.Quaternion();
-  const showA = new V3(), showB = new V3(), showC = new V3(), showUp = new V3(0, 1, 0), tailLocal = new V3(-1.9, .1, 0);
+  const SHOW_LIV = [0, 2, 5, 6, 7, 9];
+  const showA = new V3();
   function beginShow(J) {
     const A = restPts[J.from].clone(), B = restPts[J.to].clone();
     const a = sideSign(J.from), b = sideSign(J.to);
     const Y = v => (routeRY + v) * halfH;
-    const dv = mobile ? .2 : 0;
-    const S = (u, v, z) => onScreen(a * u, v + dv, z);
-    const pts = [A, new V3(a * .06 * halfW, Y(-.12), -6)];
-    const mark = {};
-    const P = (name, v) => { if (name) mark[name] = pts.length; pts.push(v); };
-    P(null, S(.1, .02, -14));                        // climbing out
-    P('join', S(-.02, .0, -21));                     // the team slides in around us
-    P(null, S(-.3, -.1, -21));                       // formation run across the sky, low, level with the loop
-    const E = pts[pts.length - 1].clone(), r = 2.3 * Math.max(.9, scale * .75);
-    for (let k = 1; k <= 10; k++) {                  // a formation loop, drifting on
-      const th = k / 10 * Math.PI * 2;
-      pts.push(new V3(E.x - a * (Math.sin(th) * r + k / 10 * r * 1.2), E.y + (1 - Math.cos(th)) * r, E.z - k / 10 * 1.2));
-    }
-    P('roll', S(-.5, .1, -22.5));                    // formation barrel roll, straight out of the loop
-    P(null, S(-.6, .08, -25));                       // a wide turn back through the distance
-    P(null, S(-.42, .03, -30));
-    P(null, S(-.12, .06, -27));
-    P('break', S(.14, .1, -21));                     // bomb burst
-    P(null, new V3(b * .62 * halfW, Y(-.1), -8));    // approach
-    pts.push(B);
-    const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', .5);
-    curve.arcLengthDivisions = 1400;
-    const lengths = curve.getLengths();
-    const total = lengths[lengths.length - 1];
-    const arcAt = i => lengths[Math.round(i / (pts.length - 1) * 1400)] / total;
-    const jpAt = name => cruiseInv(arcAt(mark[name]));
-    jump = {
-      id: J.id, curve, length: total, durS: J.dur / 1000, show: true,
-      departYaw: yawOf(new V3().subVectors(pts[1], pts[0])),
-      arriveYaw: yawOf(new V3().subVectors(B, pts[pts.length - 2])),
-      rolls: [{ a: arcAt(mark.roll) - .05, b: arcAt(mark.roll) + .05, dir: -a }],     // a slow formation roll
-      phase: [jpAt('join'), jpAt('roll'), jpAt('break')],
-      up: new V3(0, 1, 0), R0: 6.5 * Math.max(.9, scale * .75), raid: null, decoy: null,
-      team: [], smokeAcc: 0, ourSmoke: [jpAt('join') - .01, jpAt('break') + .04],
+    const dv = mobile ? .16 : .02;                 // phones: the run sits above the content strip
+    const C = (v, z) => onScreen(0, v + dv, z);    // dead centre of the screen, at depth z
+    // Leg 1 — off the podium, onto the centre of the screen, then straight away from the camera down it.
+    // Every waypoint past the turn-in has u = 0, so the run cannot veer to either side.
+    const outPts = [
+      A,
+      new V3(a * .06 * halfW, Y(-.12), -6),
+      onScreen(a * .045, dv - .01, -11),
+      C(0, -16), C(.012, -23), C(.024, -31), C(.036, -39), C(.05, -48),
+    ];
+    // Leg 2 — back out of the middle of the screen, straight at the camera, then round onto the podium
+    const inPts = [
+      C(.046, -42), C(.032, -33), C(.018, -25), C(.004, -19),
+      onScreen(b * .2, dv - .02, -14),
+      new V3(b * .62 * halfW, Y(-.1), -8),
+      B,
+    ];
+    const mk = pts => {
+      const c = new THREE.CatmullRomCurve3(pts, false, 'centripetal', .5);
+      c.arcLengthDivisions = 900;
+      const L = c.getLengths();
+      c.total = L[L.length - 1];
+      return c;
     };
-    jump.raid = planShow(jpAt('join'), jpAt('break'));
+    const ca = mk(outPts), cb = mk(inPts);
+    const D = J.dur / 1000;
+    // The blackout costs half a second of flying time; what is left is split between the legs in proportion
+    // to their length, so the plane leaves and comes back at the same speed.
+    const gap = clamp(GAP / D, .02, .12);
+    const out = (1 - gap) * ca.total / (ca.total + cb.total), into = out + gap;
+    const brk = into + Math.min(3.2 / D, (1 - into) * .55);
+    jump = {
+      id: J.id, curve: ca, length: ca.total, durS: D, show: true, dark: false,
+      legs: { a: ca, b: cb, aLen: ca.total, bLen: cb.total, out, in: into },
+      departYaw: yawOf(new V3().subVectors(outPts[1], outPts[0])),
+      arriveYaw: yawOf(new V3().subVectors(B, inPts[inPts.length - 2])),
+      rolls: [{ a: .08, b: .2, dir: -a, leg: 1 }],   // a slow victory roll as the flight comes back at us
+      phase: [0, out, brk],
+      up: new V3(0, 1, 0), R0: 6.5 * Math.max(.9, scale * .75), raid: null, decoy: null,
+      team: [], smokeAcc: 0, ourSmoke: [into, brk + .04],
+    };
+    // The fighters come at us over the middle of the outbound run: the first once we are well clear of the
+    // podium, the last with seconds to spare, so nothing is left alive when the plane goes.
+    const engage = [.34, .46, .57, .68, .79].map(k => out * k);
+    jump.phase[0] = engage[0] - .02;
+    jump.raid = planShow(out, into, brk, engage, a);
   }
-  function planShow(jJoin, jBreak) {
+  function planShow(jOut, jIn, jBreak, engage, a) {
     const df = dogfight && dogfight.raid;
     if (!df) return null;
-    const D = jump.durS;
+    const D = jump.durS, s = scale;
     const events = [];
     const at = (t, fn) => events.push({ t, fn, done: false });
-    // Where the team flies before joining: a straight line through the join point along our heading there,
-    // at our cruise speed, so the hand-over is seamless
-    const J0 = ourAt(jJoin, new V3());
-    const dir = jump.curve.getTangentAt(cruiseEase(jJoin), new V3()).normalize();
-    const vJ = jump.length / (1 - JR);
-    // each plane barrel-rolls about its own axis as the team crosses (rolling the whole formation about the
-    // empty lead slot swung the outer planes round far too fast)
-    const rollFrom = jJoin - 2.3 / D, rollTo = jJoin - 1.25 / D, rollDir = Math.random() < .5 ? 1 : -1;
-    showC.crossVectors(dir, showUp).normalize();
-    showB.crossVectors(showC, dir);
-    showM.makeBasis(dir, showB, showC);
-    const qTeam = new THREE.Quaternion().setFromRotationMatrix(showM);
-    const qPre = new THREE.Quaternion();
-    SHOW_SLOTS.forEach((slot, i) => {
+    const burst = (t0, t1, every, fn) => events.push({ t: t0, to: t1, every: every / D, next: t0, fn });
+    const SAFE = safeGap();
+    const progress = (foe, T) => Flight.jump.p + (T - foe.clock) / D;
+    const downs = [];
+
+    // Out of the vanishing point: a fighter grows out of the deep centre on a converging line and at jpK sits
+    // in the gunsight just ahead of us, where it takes the burst and goes down, thrown clear of our line.
+    // keepApart() and the widening loop below mean it never flies through us on the way.
+    const LEAD = 2;
+    function head(jpK, side, lift, livery) {
+      const out = { w: true, x: 0, y: 0, z: 0 };
+      const K = new V3(), F = new V3(), dir = new V3();
+      let wide = 1, vE = 0;
+      const aim = () => {
+        ourAt(jpK, K).add(fxB.set(side * 2.2 * s * wide, lift * s * wide, -6 * s));
+        F.copy(K).add(fxB.set(side * 1.6 * s * wide, lift * .5 * s, -38));
+        vE = F.distanceTo(K) / LEAD;
+        dir.subVectors(K, F).normalize();
+      };
+      const posAt = (jp, v) => v.copy(K).addScaledVector(dir, vE * (jp - jpK) * D);
+      aim();
+      for (let tries = 0; tries < 6 && clearance(posAt, jpK - LEAD / D, jpK + .6 / D) < SAFE; tries++) { wide *= 1.3; aim(); }
+      let foe = null, done = false, hits = 0;
+      const path = T => {
+        posAt(progress(foe, T), fxD);
+        out.x = fxD.x; out.y = fxD.y; out.z = fxD.z;
+        return out;
+      };
+      const down = () => {
+        if (done) return;
+        done = true;
+        if (!foe || !foe.alive) return;
+        df.kill(foe, Math.random() < .35 ? 'blast' : 'burn');
+        foe.vel.add(fxB.set(side * 5 * s, -2.4 * s, 3 * s));
+      };
+      downs.push(down);
+      at(jpK - LEAD / D, () => { foe = df.launch(path, livery, .72); });
+      burst(jpK - .95 / D, jpK - .04 / D, .05, () => {
+        if (!foe || !foe.alive) return;
+        jump.track = foe;
+        jump.trackT = time;
+        // hold fire until the target is in the gunsight
+        if (fxA.subVectors(foe.pos, plane.position).normalize().dot(forward) < Math.cos(.3)) return;
+        const lead = foe.pos.distanceTo(plane.position) / (50 * scale);
+        fireGun(model.guns[gunCursor++ % model.guns.length], fxC.copy(foe.pos).addScaledVector(foe.vel, lead));
+        // rounds striking home: sparks on the airframe, then it starts to smoke
+        if (Math.random() < .32) {
+          hits++;
+          explode(fxD.copy(foe.pos).add(fxB.set(Math.random() - .5, Math.random() - .5, Math.random() - .5).multiplyScalar(foe.world)), { air: true, size: .09, quiet: true });
+          if (sfx) sfx.ping(panOf(foe.pos));
+          if (hits >= 2) foe.smoke = 1;
+        }
+      });
+      at(jpK, down);
+    }
+    engage.forEach((jpK, i) => head(jpK, i % 2 ? -a : a, i % 3 === 1 ? -1.3 : 1.2, SHOW_LIV[(i + 2) % SHOW_LIV.length]));
+    // Nothing survives the blackout: anything still flying is shot down as the plane goes, and the stage is
+    // swept clean while nobody can see it (the support flight has not launched yet, so this only takes foes).
+    at(jOut, () => downs.forEach(fn => fn()));
+    at((jOut + jIn) / 2, () => df.clear());
+
+    // The support flight: station-keeping on the leader from the moment it reappears, then the break
+    SUPPORT.forEach((slot, i) => {
       const out = { w: true, x: 0, y: 0, z: 0, q: new THREE.Quaternion() };
       let foe = null;
       const path = T => {
-        const jp = Flight.jump.p;
-        if (foe && foe.burst) {                          // bomb burst: peel away and climb or dive off the screen
+        if (foe && foe.burst) {                    // the break: peel outwards and climb or dive off the screen
           const t = T - foe.burst.T;
-          showA.copy(foe.burst.P).addScaledVector(foe.burst.V, t).addScaledVector(foe.burst.dir, 3.2 * scale * t * t);
+          showA.copy(foe.burst.P).addScaledVector(foe.burst.V, t).addScaledVector(foe.burst.dir, 4.4 * scale * t * t);
           out.x = showA.x; out.y = showA.y; out.z = showA.z;
           out.q = null;
           return out;
         }
-        const w = smooth(jJoin - 1.1 / D, jJoin, jp);
-        showA.copy(J0).addScaledVector(dir, (jp - jJoin) * vJ).add(showB.copy(slot).multiplyScalar(scale).applyQuaternion(qTeam));
-        showRoll.setFromAxisAngle(X_AXIS, Math.PI * 2 * smooth(rollFrom, rollTo, jp) * rollDir);
-        qPre.copy(qTeam).multiply(showRoll);
-        if (w > 0) {
-          showC.copy(slot).multiplyScalar(scale).applyQuaternion(plane.quaternion).add(plane.position);
-          showA.lerp(showC, w);
-          qPre.slerp(plane.quaternion, w);
-        }
+        showA.copy(slot).multiplyScalar(scale);
+        showA.y += Math.sin(T * 1.1 + i * 1.7) * .13 * scale;     // a lazy wander, so the flight is not welded on
+        showA.z += Math.sin(T * .8 + i * 2.3) * .16 * scale;
+        showA.applyQuaternion(plane.quaternion).add(plane.position);
         out.x = showA.x; out.y = showA.y; out.z = showA.z;
         out.q = out.q || new THREE.Quaternion();
-        out.q.copy(qPre);
+        out.q.copy(plane.quaternion);
         return out;
       };
-      at(jJoin - 3 / D, () => {
-        foe = df.launch(path, 9 + (i % 2), .62);
+      at(jIn, () => {
+        foe = df.launch(path, SHOW_LIV[i], .58);
         if (!foe) return;
         foe.show = true;
         foe.stay = true;
-        foe.smokeCol = SHOW_SMOKE[i];
+        foe.trail = SHOW_SMOKE[i];
         jump.team.push(foe);
       });
       at(jBreak, () => {
         if (!foe || !foe.active) return;
-        foe.burst = { T: foe.clock, P: foe.pos.clone(), V: foe.vel.clone().multiplyScalar(.8), dir: SHOW_BURST[i].clone().applyQuaternion(plane.quaternion) };
+        foe.burst = { T: foe.clock, P: foe.pos.clone(), V: foe.vel.clone().multiplyScalar(.85), dir: SUPPORT_BURST[i].clone().applyQuaternion(plane.quaternion) };
         foe.stay = false;
         foe.age = 0;
-        foe.smokeUntil = foe.clock + 2.4;
       });
     });
     return events;
   }
-  // Coloured smoke: the team from the moment it appears until well into the bomb burst, our plane while in formation
+  // Our plane trails display smoke while it leads the flight home (each wingman runs its own, in dogfight.js)
   function updateShowSmoke(dt) {
     jump.smokeAcc += dt;
-    if (jump.smokeAcc < .035) return;
+    if (jump.smokeAcc < .04) return;
     jump.smokeAcc = 0;
-    for (const a of jump.team) {
-      if (!a.active || !a.alive || (a.smokeUntil && a.clock > a.smokeUntil) || a.clock < .9) continue;
-      spawnTrail(a.g.localToWorld(showA.copy(tailLocal)), false, .6, false, a.smokeCol);
-    }
     const jp = Flight.jump.p;
-    if (jp > jump.ourSmoke[0] && jp < jump.ourSmoke[1]) spawnTrail(plane.localToWorld(showA.set(-2.1, .15, 0)), false, .75, false, OUR_SMOKE);
+    if (!jump.dark && jp > jump.ourSmoke[0] && jp < jump.ourSmoke[1]) spawnTrail(plane.localToWorld(showA.set(-2.1, .15, 0)), false, .75, false, OUR_SMOKE);
   }
 
   function jumpPose(jp, dt) {
-    const sArc = cruiseEase(jp);
-    const C = jump.curve;
+    const g = segOf(jp);
+    jump.dark = g.dark;
+    if (g.dark) return;                              // between the legs: out of sight, hold the last pose
+    const sArc = g.s, C = g.c, L = g.L;
     C.getPointAt(sArc, pos);
     C.getTangentAt(sArc, fwd).normalize();
     const ds = .003;
     C.getPointAt(Math.max(0, sArc - ds), dirA);
     C.getPointAt(Math.min(1, sArc + ds), dirB);
     // curvature: the lift vector leans into the turn, so banks, breaks and the loop come out naturally
-    tmpA.copy(dirA).add(dirB).addScaledVector(pos, -2).divideScalar(ds * ds * jump.length * jump.length);
+    tmpA.copy(dirA).add(dirB).addScaledVector(pos, -2).divideScalar(ds * ds * L * L);
     tmpA.addScaledVector(fwd, -tmpA.dot(fwd));
     tmpB.set(0, 1, 0).addScaledVector(tmpA, jump.R0);
     tmpB.addScaledVector(fwd, -tmpB.dot(fwd));
@@ -2606,7 +2711,7 @@
     jumpM.makeBasis(fwd, jumpY, tmpC);
     airQ.setFromRotationMatrix(jumpM);
     let roll = 0;
-    for (const r of jump.rolls) roll += Math.PI * 2 * smooth(r.a, r.b, sArc) * r.dir;
+    for (const r of jump.rolls) if (r.leg === undefined || r.leg === g.i) roll += Math.PI * 2 * smooth(r.a, r.b, sArc) * r.dir;
     localQ.setFromAxisAngle(X_AXIS, roll);
     airQ.multiply(localQ);
     targetQ.copy(airQ);
@@ -2624,13 +2729,7 @@
     const burst = (t0, t1, every, fn) => events.push({ t: t0, to: t1, every: every / D, next: t0, fn });
     const liv = [1, 3, 4, 8].sort(() => Math.random() - .5);
     const progress = (foe, T) => Flight.jump.p + (T - foe.clock) / D;
-    // closest a planned path comes to our own route over [j0, j1]; SAFE is the gap we insist on
-    const SAFE = (2.4 + .7 * 2.2) * s * 1.3, cq = new V3(), co = new V3();
-    const clearance = (posAt, j0, j1) => {
-      let m = Infinity;
-      for (let j = Math.max(0, j0); j <= Math.min(1, j1); j += .003) m = Math.min(m, posAt(j, cq).distanceTo(ourAt(j, co)));
-      return m;
-    };
+    const SAFE = safeGap();
 
     // Gun pass: out of the distance to a point well beside us, then a climbing, banking break (one rolls away)
     function pass(jpP, side, lift, livery, o = {}) {
@@ -3213,7 +3312,9 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
       d.len = .42 * scale;
       d.max = .34 + Math.random() * .1;
       d.front = !!Impacts && Math.random() < (parkedAt === 0 ? .45 : .38);
-      if (Impacts && parkedAt > 0 && Math.random() < .4) aimAtPage(d, 'card');
+      // Holding a section: the guns are working over the nav bar, so that is where the rounds go
+      if (Impacts && defense.menu) aimAtPage(d, 'menu');
+      else if (Impacts && parkedAt > 0 && Math.random() < .4) aimAtPage(d, 'card');
       else if (Impacts && parkedAt === 0 && Math.random() < .3) aimAtPage(d, 'letter');
     }
     d.on = true;
@@ -3249,7 +3350,9 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
     fxB.copy(d.start).addScaledVector(d.dir, range);
     if (!inFront(d.start) || !inFront(fxB)) return;
     const a = toScreen(d.start), b = toScreen(fxB);
-    const hit = kind === 'letter' ? Impacts.findLetterHit(a.x, a.y, b.x, b.y) : Impacts.findHit(parkedAt, a.x, a.y, b.x, b.y);
+    const hit = kind === 'letter' ? Impacts.findLetterHit(a.x, a.y, b.x, b.y)
+      : kind === 'menu' ? Impacts.findMenuHit(a.x, a.y, b.x, b.y)
+        : Impacts.findHit(parkedAt, a.x, a.y, b.x, b.y);
     if (!hit) return;
     d.hitKind = kind;
     fxC.copy(d.start).addScaledVector(d.dir, range * hit.t).project(camera);
@@ -3282,6 +3385,7 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
         d.on = tr.visible = false;
         if (d.hit) {
           if (d.hitKind === 'letter') Impacts.hitLetter(d.hit, d.dir);
+          else if (d.hitKind === 'menu') Impacts.holeMenu(d.hit, d.dir);
           else Impacts.hole(d.hit, d.dir);
           if (sfx) sfx.impact(d.hit.x / innerWidth * 2 - 1, d.hitKind);
         }
@@ -3682,6 +3786,25 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
       if (toScreen(aimPoint(from, mid, fxD)).x > px) lo = mid; else hi = mid;
     }
     return (lo + hi) / 2;
+  }
+
+  // ---------- Strafing the menu ----------
+  // Landed on a section, the turret walks slowly from one end of the nav bar to the other and back, and the
+  // rounds punch holes through whatever it is pointing at (impacts.js does the page side). Up to ENGAGE_MAX
+  // seconds of this per landing, broken by any aircraft that wanders into the sight.
+  const ENGAGE_MAX = 15;
+  const menuPan = { x: null, dir: 1 };
+  function menuWalk(dt) {
+    const band = Impacts && Impacts.menuBand ? Impacts.menuBand() : null;
+    if (!band || band.r - band.l < 40) return null;
+    if (menuPan.x === null) {
+      menuPan.x = band.l + Math.random() * (band.r - band.l);
+      menuPan.dir = Math.random() < .5 ? 1 : -1;
+    }
+    menuPan.x = clamp(menuPan.x, band.l, band.r) + menuPan.dir * (band.r - band.l) / 6 * dt;
+    if (menuPan.x >= band.r) { menuPan.x = band.r; menuPan.dir = -1; }
+    else if (menuPan.x <= band.l) { menuPan.x = band.l; menuPan.dir = 1; }
+    return menuPan.x;
   }
 
   // ---------- Day / night ----------
@@ -4117,6 +4240,8 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
       else plane.quaternion.slerp(targetQ, damp(reduced ? 60 : 16, dt));
     }
     plane.scale.setScalar(sPlane);
+    // Half a second out of sight between the two legs of the peaceful show
+    plane.visible = !(jumping && jump.dark);
 
     // --- Engine: revs up for take-off and in flight ---
     const taxiRev = (1 - smooth(.3, .45, u)) * smooth(0, .04, u) * 36;
@@ -4237,6 +4362,7 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
         defense.userSpin = 0;
         defense.missile = 1.5;
         defense.section = parkedAt;
+        menuPan.x = null;
         aim.yaw = clamp(yawOf(fxD.set(forward.x, 0, forward.z)), NORTH - AIM_RANGE, NORTH + AIM_RANGE);
         if (sfx) sfx.ui();
       }
@@ -4244,7 +4370,10 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
     if (defense.on) {
       defense.t += dt;
       const flat = fxD.set(forward.x, 0, forward.z).normalize();
-      const t = dogfight.game.nearest(gunPos, flat, 2.2);
+      // only break off for something that is more or less already in front of the guns — the menu is the
+      // default target, the aircraft are the interruptions
+      const t = dogfight.game.nearest(gunPos, flat, 1);
+      defense.menu = false;
       if (t) {
         // lead the target a little, then swing the podium onto it
         const lead = t.pos.distanceTo(gunPos) / (56 * scale);
@@ -4262,22 +4391,32 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
           Impacts.lock(tp.x, tp.y, t.world * innerHeight * 2.4 / t.pos.distanceTo(camera.position));
         }
       } else {
-        aim.yaw += wrapPi(NORTH - aim.yaw) * damp(1.5, dt);
+        // nothing in the sky worth the trouble: the guns go back to walking along the menu bar
+        const mx = menuWalk(dt);
+        if (mx === null) aim.yaw += wrapPi(NORTH - aim.yaw) * damp(1.5, dt);
+        else {
+          const want = yawForScreenX(mx, gunPos);
+          aim.yaw += wrapPi(want - aim.yaw) * damp(4.5, dt);
+          defense.menu = true;
+          defense.firing = Math.abs(wrapPi(want - aim.yaw)) < .12 && defense.t > .5;
+        }
       }
       const want = aim.yaw - poseYawFor(parkedAt);
       spinTargets[parkedAt] = want + Math.round((spins[parkedAt] - want) / TAU) * TAU;
-      // ends after a while, or when you turn the podium yourself
-      if (defense.t > 28 || defense.userSpin > .9) {
+      // hard stop: the engagement never outlasts ENGAGE_MAX, and turning the podium yourself ends it early
+      if (defense.t > ENGAGE_MAX || defense.userSpin > .9) {
         defense.on = false;
-        if (defense.t > 28) spinTargets[parkedAt] = Math.round(spins[parkedAt] / TAU) * TAU;
+        defense.menu = false;
+        if (defense.t > ENGAGE_MAX) spinTargets[parkedAt] = Math.round(spins[parkedAt] / TAU) * TAU;
       }
-    }
+    } else defense.menu = false;
 
     // Battle damage heals once the fight is over and the plane is back on its resting heading
     updateDamage(dt, !defense.on && idleGame && (!parked || offNorth > 55));
 
     const inRound = !!game && game.firing && parked;
-    gameFiring = (inRound && game.weapon !== 'missiles') || defense.firing;
+    const strafing = defense.firing && defense.menu;        // aimed at the page, not at the sky
+    gameFiring = (inRound && game.weapon !== 'missiles') || (defense.firing && !defense.menu);
     missileWait -= dt;
     if (inRound && game.weapon !== 'guns' && missileWait <= 0) {
       if (fireGameMissile(fxD.set(forward.x, 0, forward.z).normalize())) missileWait = game.weapon === 'both' ? .75 : .4;
@@ -4286,9 +4425,9 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
     // --- Guns: only while parked on a podium with the engine running, in short bursts ---
     parkTime = idleGame && !defense.on && parked && intro >= 1 && !reduced && p.rig.visible && !peaceful() ? parkTime + dt : 0;
     const burstT = parkTime - 1.2;
-    gunsHot = gameFiring || (burstT > 0 && burstT % 2.9 < 1.25);
+    gunsHot = gameFiring || strafing || (burstT > 0 && burstT % 2.9 < 1.25);
     if (gunsHot) {
-      shotAcc += dt * (gameFiring ? 16 : 24);
+      shotAcc += dt * (gameFiring ? 16 : strafing ? 13 : 24);
       while (shotAcc > 1) { shotAcc -= 1; fireGun(model.guns[gunCursor++ % model.guns.length]); }
     } else shotAcc = 0;
     updateGuns(dt);
@@ -4324,7 +4463,7 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
       r.mesh.scale.setScalar(Math.max(.001, easeOut(k)));
     });
     salvoTimer -= dt;
-    updateCrew(dt, parked, f, gunsHot || gunGlow > .05, jumping && !jump.show && J.p > jump.phase[0] && J.p < jump.phase[2]);
+    updateCrew(dt, parked, f, gunsHot || gunGlow > .05, jumping && J.p > jump.phase[0] && J.p < jump.phase[jump.show ? 1 : 2]);
     updateMissiles(dt, sPlane);
     updateExplosions(dt);
     updateTroops(dt);
@@ -4347,10 +4486,18 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
       });
       if (jumping) keepApart();
       if (jumping && jump.show) updateShowSmoke(dt);
-      // the show is over (or was cut short): any display plane still on stage flies off
-      if (!jumping && jump.team && jump.team.length) {
-        jump.team.forEach(a => { if (a.stay) { a.stay = false; a.age = 14; } });
-        jump.team.length = 0;
+      // The flight is over (or was cut short). Every fighter still up goes with it — its path is scripted
+      // against a jump that has stopped running — and the support flight peels off and leaves the stage.
+      if (!jumping && jump.raid) {
+        jump.raid = null;
+        jump.decoy = null;
+        jump.track = null;
+        jump.dark = false;
+        dogfight.raid.clear(true);
+        if (jump.team) {
+          jump.team.forEach(a => { a.stay = false; if (a.age < 14) a.age = 14; });
+          jump.team.length = 0;
+        }
       }
     }
     soundTimer += dt;
@@ -4383,7 +4530,7 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
       else status = 'Inbound';
       if (jumping && !onWheels && groundW < .05) {
         const jp = J.p, ph = jump.phase;
-        status = jump.show ? (jp < ph[0] ? 'Climbing out' : jp < ph[2] ? 'Air show' : 'Inbound')
+        status = jump.show ? (jp < ph[0] ? 'Climbing out' : jp < ph[1] ? 'Engaging' : jp < ph[2] ? 'Re-forming' : 'Inbound')
           : jp < ph[0] ? 'Climbing out' : jp < ph[1] ? 'Evading' : jp < ph[2] ? 'Engaging' : 'Inbound';
       }
       if (game && game.state === 'countdown') status = 'Get ready';

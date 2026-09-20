@@ -1066,7 +1066,8 @@
         return spawnMissile({ pos: fA, vel: fB, size: a.world * 1.1, maxSpeed: 17 * getScale(), air: true, target: point, track, volume: .5, onHit });
       },
       kill(a, how) { if (a && a.active && a.alive) kill(a, how || 'blast', 1.15); },
-      clear() { for (const a of actors) if (a.foe) hide(a); },
+      // Sweep the stage. `keepShow` spares the display flight, which flies itself off after the break.
+      clear(keepShow) { for (const a of actors) if (a.foe && !(keepShow && a.show)) hide(a); },
     };
 
     // ---------- Director ----------

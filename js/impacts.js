@@ -38,6 +38,8 @@
     lastW = innerWidth;
     holes.forEach(list => list.forEach(h => h.el.remove()));
     holes.clear();
+    menuHoles.splice(0).forEach(h => h.el.remove());
+    menuCache = null;
     pending.length = 0;
     landed = -1;
   });
@@ -113,6 +115,7 @@
   }
 
   function frame(dt) {
+    ageMenuHoles();
     if (!lines.length && !bits.length && !sight && !locked) {
       if (dirty) {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -424,10 +427,111 @@
     burst(r.left + lx * r.width / card.w, r.top + ly * r.height / card.h, dx / l, dy / l, 'card');
   }
 
+  // ---------- Menu strafing ----------
+  // The nav bar is a target in its own right: parked on a section the plane walks its guns along it and the
+  // rounds punch through the links and buttons. Unlike the cards there is nothing to protect — the item *is*
+  // the target — so a hole can land anywhere inside one, just off the edge and clear of its neighbours.
+  // The marks go in a fixed overlay of their own rather than inside the nav, so nothing in the bar has to be
+  // re-styled and a hole is never clipped by its rounded corners.
+  const MENU_SEL = '.brand, .nav__links a, .nav__actions button, .nav__actions .btn';
+  const MENU_MAX = 9, MENU_SPACING = 20, MENU_LIFE = 7000;
+  const menuHoles = [], menuPending = [];
+  let menuLayer = null, menuCache = null, menuTime = 0, lastMenuShot = 0;
+
+  function menuItems() {
+    const t = now();
+    if (menuCache !== null && t - menuTime < 200) return menuCache;
+    menuTime = t;
+    const nav = reduced ? null : document.querySelector('.nav');
+    const nb = nav && nav.getBoundingClientRect();
+    if (!nb || nb.bottom < 6 || nb.width < 60) { menuCache = null; return null; }   // still tucked away off the top
+    const items = [...nav.querySelectorAll(MENU_SEL)]
+      .map(el => el.getBoundingClientRect())
+      .filter(r => r.width > 24 && r.height > 12 && r.top > -4 && r.right > 0 && r.left < innerWidth);
+    menuCache = items.length ? { nav: nb, items } : null;
+    return menuCache;
+  }
+  // The screen span the guns should walk along; null when there is no menu worth shooting at
+  function menuBand() {
+    const m = menuItems();
+    return m ? { l: m.nav.left + 12, r: m.nav.right - 12 } : null;
+  }
+  function menuFree(x, y) {
+    for (const h of menuHoles) if (!h.gone && Math.hypot(h.x - x, h.y - y) < MENU_SPACING) return false;
+    for (const h of menuPending) if (Math.hypot(h.x - x, h.y - y) < MENU_SPACING) return false;
+    return true;
+  }
+  // Where would a round fired along this screen segment land on the menu? Whatever the guns are pointed at:
+  // the item nearest the far end of the bullet's path, which is the bearing the turret is holding.
+  function findMenuHit(x0, y0, x1, y1) {
+    const m = menuItems();
+    if (!m) return null;
+    const t = now();
+    if (menuPending.length > 4 || t - lastMenuShot < 70) return null;
+    let best = null, bestD = Math.max(150, innerWidth * .18);
+    for (const r of m.items) {
+      const d = Math.abs(r.left + r.width / 2 - x1);
+      if (d < bestD) { bestD = d; best = r; }
+    }
+    if (!best) return null;
+    for (let k = 0; k < 10; k++) {
+      const x = rnd(best.left + 8, best.right - 8), y = rnd(best.top + 5, best.bottom - 5);
+      if (x < 6 || x > innerWidth - 6 || y < 4 || !menuFree(x, y)) continue;
+      lastMenuShot = t;
+      const hit = { menu: true, x, y, t: .88, aim: Math.atan2(y1 - y0, x1 - x0) };
+      menuPending.push(hit);
+      return hit;
+    }
+    return null;
+  }
+  function retireMenu(h) {
+    if (h.gone) return;
+    h.gone = true;
+    h.el.classList.add('is-gone');
+    setTimeout(() => h.el.remove(), 750);
+  }
+  function ageMenuHoles() {
+    if (!menuHoles.length) return;
+    const t = now();
+    for (let i = menuHoles.length - 1; i >= 0; i--) {
+      const h = menuHoles[i];
+      if (h.gone) { if (t - h.t > MENU_LIFE + 900) menuHoles.splice(i, 1); continue; }
+      if (t - h.t > MENU_LIFE) retireMenu(h);
+    }
+  }
+  function holeMenu(hit, dir) {
+    const pi = menuPending.indexOf(hit);
+    if (pi >= 0) menuPending.splice(pi, 1);
+    if (!menuItems()) return;
+    if (!menuLayer) {
+      menuLayer = document.createElement('div');
+      menuLayer.setAttribute('aria-hidden', 'true');
+      menuLayer.style.cssText = 'position:fixed;inset:0;z-index:21;pointer-events:none';
+      document.body.appendChild(menuLayer);
+    }
+    let live = menuHoles.filter(h => !h.gone);
+    while (live.length >= MENU_MAX) retireMenu(live.shift());
+    const el = document.createElement('i');
+    el.className = 'bullet-hole';
+    el.setAttribute('aria-hidden', 'true');
+    el.style.left = `${hit.x.toFixed(1)}px`;
+    el.style.top = `${hit.y.toFixed(1)}px`;
+    el.style.setProperty('--rot', `${Math.round(rnd(0, 360))}deg`);
+    el.style.setProperty('--s', rnd(.34, .5).toFixed(2));   // small: a nav link is a fraction of a card
+    el.innerHTML = crackSvg(rnd(.85, 1.05), Math.random() < .5);
+    menuLayer.appendChild(el);
+    menuHoles.push({ el, x: hit.x, y: hit.y, t: now(), gone: false });
+    const dx = dir ? dir.x : 1, dy = dir ? -dir.y : 0;
+    const l = Math.hypot(dx, dy) || 1;
+    burst(hit.x, hit.y, dx / l, dy / l, 'card');
+  }
+
   // Landing on a section: marks elsewhere fade away, so each visit starts clean
   function land(section) {
     if (section === landed) return;
     landed = section;
+    menuHoles.filter(h => !h.gone).forEach(retireMenu);
+    menuPending.length = 0;
     cache.delete(section);
     pending.length = 0;
     holes.forEach((list, s) => {
@@ -516,5 +620,5 @@
     });
   }, 500);
 
-  window.Impacts = { tracer, frame, findHit, hole, land, burst, reticle, lock, findLetterHit, hitLetter };
+  window.Impacts = { tracer, frame, findHit, hole, land, burst, reticle, lock, findLetterHit, hitLetter, menuBand, findMenuHit, holeMenu };
 })();
