@@ -86,7 +86,7 @@
   const SCALE = 1 / 5;
   let W = 1, H = 1, cw = 1, ch = 1;
   function size() {
-    W = innerWidth; H = innerHeight;
+    W = Math.max(1, innerWidth); H = Math.max(1, innerHeight);
     cw = Math.max(40, Math.ceil(W * SCALE));
     ch = Math.max(30, Math.ceil(H * SCALE));
     canvas.width = cw;
@@ -114,6 +114,7 @@
   function blob(x, y, r, c, a) {
     if (a < .004) return;
     const X = x * SCALE, Y = y * SCALE, R = r * SCALE;
+    if (!isFinite(X) || !isFinite(Y) || !(R > 0)) return;
     const g = ctx.createRadialGradient(X, Y, 0, X, Y, R);
     g.addColorStop(0, rgba(c, a));
     g.addColorStop(.45, rgba(c, a * .62));
