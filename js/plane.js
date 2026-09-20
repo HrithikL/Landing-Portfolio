@@ -1994,6 +1994,30 @@
   // Two podium rigs are enough: the one being left and the one being landed on.
   const PODIUM_TILT = .12;
   const PODIUM_R = 2.0;              // keep in sync with stageLayout() in main.js
+
+  // A podium parks a long way off the camera's optical axis, so a deck that is perfectly level in world
+  // space still projects as a skewed ellipse and reads as *inclined* — the lean is projection, not rotation.
+  // Two corrections put every podium (and the plane parked on it) dead level on screen: tip the deck toward
+  // the viewer about the camera-relative horizontal axis instead of world X, and roll off the leftover skew
+  // about the line of sight. Both follow rig.position, so the slide to centre stage for the game un-corrects
+  // itself on the way in, and a banking plane in flight is untouched — this only shapes the resting pose.
+  const parkView = new V3(), parkAxis = new V3(), parkUp = new V3(0, 1, 0);
+  const parkRollQ = new THREE.Quaternion(), parkTiltQ = new THREE.Quaternion(), parkSpinQ = new THREE.Quaternion();
+  const camRight = new V3(1, 0, 0).applyQuaternion(camera.quaternion);
+  const camUp = new V3(0, 1, 0).applyQuaternion(camera.quaternion);
+  const camFwd = new V3(0, 0, -1).applyQuaternion(camera.quaternion);
+  function parkRig(rig, spin) {
+    parkView.copy(rig.position).sub(camera.position);
+    // Every world vertical converges on the nadir, so world up leans by `skew` in screen space out here.
+    const vz = parkView.dot(camFwd), uz = camFwd.dot(parkUp);
+    const skew = Math.atan2(camRight.dot(parkUp) * vz - parkView.dot(camRight) * uz,
+                            camUp.dot(parkUp) * vz - parkView.dot(camUp) * uz);
+    parkAxis.set(-parkView.z, 0, parkView.x).normalize();         // horizontal, square to the line of sight
+    parkTiltQ.setFromAxisAngle(parkAxis, PODIUM_TILT);
+    parkSpinQ.setFromAxisAngle(parkUp, spin);
+    parkRollQ.setFromAxisAngle(parkView.normalize(), -skew);
+    rig.quaternion.copy(parkRollQ).multiply(parkTiltQ).multiply(parkSpinQ);
+  }
   const podiumMap = podiumTexture();
   const podiumGeo = new THREE.CylinderGeometry(1, 1.035, .08, 96, 1, false);
   const contactTex = radialTexture([[0, 'rgba(12,8,4,.95)'], [.35, 'rgba(12,8,4,.55)'], [1, 'rgba(12,8,4,0)']], 128);
@@ -2156,7 +2180,11 @@
     halfH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * dist;
     halfW = halfH * camera.aspect;
     mobile = W < 860;
-    scale = Flight.layout ? Flight.layout.scale : mobile ? clamp(halfW / 3.6, .45, .8) : clamp(halfW / 5.4, .8, 1.75);
+    // Framing has to key off both axes. The vertical fov is fixed, so the visible world *height* never
+    // changes with the window — narrow viewports were sizing the plane off width alone and stranding all
+    // that headroom. Fit to whichever axis actually runs out, and let the height budget be the ceiling.
+    const room = mobile ? Math.min(halfW / 3.2, halfH / 3.2) : Math.min(halfW / 5.4, halfH / 2.4);
+    scale = Flight.layout ? Flight.layout.scale : clamp(room, mobile ? .5 : .8, mobile ? 1.35 : 1.75);
     buildRoutes();
   }
   layout();
@@ -3018,7 +3046,7 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
     const rest = restPts[index];
     const home = index === 0;
     p.rig.position.set(rest.x + (home ? podShift0 : 0), rest.y - top - groundHeight(GROUND_PITCH) * sPlane + (home ? podDrop0 : 0), rest.z + (home ? podNear0 : 0));
-    p.rig.rotation.set(PODIUM_TILT, spins[index], 0);
+    parkRig(p.rig, spins[index]);
     p.rig.updateMatrixWorld(true);
     p.mesh.scale.set(R, T, R);
     p.top = top;
