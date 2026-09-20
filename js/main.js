@@ -38,7 +38,6 @@
       if (el._edgeD !== d) { el._edgeD = d; el.lastElementChild.style.setProperty('--d', `${d}px`); }
     });
   }
-  let maxScroll = 1;
 
   // ---------- Flight timeline ----------
   // Each section is parked over a scroll range [rests[i], restEnds[i]] (longer than zero only when its
@@ -87,9 +86,15 @@
     const W = innerWidth, H = innerHeight;
     const root = document.documentElement.style;
     const mobile = W < 860;
-    const halfW = Math.tan(17.5 * Math.PI / 180) * Math.hypot(1.4, 14) * W / H;
-    const scale = mobile ? clamp(halfW / 3.6, .45, .8) : clamp(halfW / 5.4, .8, 1.75);
-    const D = 2.0 * scale / halfW * W * 1.12;      // + rim, bevel and perspective
+    const halfH = Math.tan(17.5 * Math.PI / 180) * Math.hypot(1.4, 14);
+    const halfW = halfH * W / H;
+    // Framing has to key off both axes. The vertical fov is fixed, so the visible world *height* never
+    // changes with the window, and a scale taken off width alone stranded all that headroom. Fit to
+    // whichever axis actually runs out. plane.js's layout() runs the identical rule and then defers to
+    // the number parked here — if the two ever disagree the podium drifts off the content column.
+    const room = mobile ? Math.min(halfW / 3.2, halfH / 3.2) : Math.min(halfW / 5.4, halfH / 2.4);
+    const scale = clamp(room, mobile ? .5 : .8, mobile ? 1.35 : 1.75);
+    const D = 2.0 * scale / halfW * W * 1.12;      // PODIUM_R = 2.0 in plane.js, + rim, bevel and perspective
     const G = Math.round(clamp(W * .05, 20, 100));
     const col = Math.round(Math.max(320, W - 3 * G - D));
     Flight.layout = { scale, rx: (W - G - D / 2) / W * 2 - 1, gutter: G, col, podium: D, mobile };
@@ -246,10 +251,25 @@
   // scrollbar, a resize), the plane settles itself: past 80% it lands on the next section, under 20% it
   // goes back, in between it carries on the way it was going.
   sticky = lenis && (() => {
-    const QUIET = 180;                               // ms without input that ends one wheel gesture
-    const CAP = 1;                                   // one gesture can fill it, but never twice
-    const PER_PX = { wheel: 1 / 70, touch: 1 / 55 };   // ~70px of wheel (one click is ~90) or ~55px of swipe
-    const HOLD = 850, LEAK = .8;                     // the throttle waits a moment, then drains
+    // Take-off asks for two or three *distinct* scroll actions, never one long fling. The input is cut
+    // into gestures — a gesture ends when the wheel or the finger goes quiet, or when it turns around —
+    // and a gesture is worth a limited number of actions however far it runs on. A mouse arrives as a few
+    // big deltas (its detents), so one spin may spend all three; a trackpad or a thumb streams small ones,
+    // and the whole flick, inertia tail and all, is worth exactly one.
+    const QUIET = { wheel: 140, touch: 110 };        // ms of stillness that ends a gesture
+    const STEP = { wheel: 70, touch: 46 };           // px of travel that earns one action (a wheel click is ~90)
+    const NEED = { wheel: 3, touch: 2 };             // actions that take off
+    const COARSE = 40;                               // px per event: above it the wheel is throwing detents…
+    const SPARSE = 25;                               // …and ms per event: a wheel's clicks are at least that far
+                                                     // apart, while a pad streams several times faster. A violent
+                                                     // flick can fake the size of a detent, but never the spacing.
+    const SPEND = 3;                                 // actions one gesture of detents may spend; a streamed one spends 1
+    const HOLD = 1000, LEAK = 1.2;                   // the count waits a second after the last input, then drains
+    // Information tiles hold the page still: reading one should never fly you off the section, so the
+    // wheel over a tile earns no throttle at all (whatever scrolls *inside* it still scrolls). One
+    // selector is the whole contract — put data-hold-scroll on anything new that should read the same way.
+    const TILES = '[data-hold-scroll], .agenda__item, .news-card, .res-card, .tile, .credit-acc';
+    const overTile = t => !!(t && t.closest && t.closest(TILES));
     const names = $$('.rail button').map(b => b.getAttribute('aria-label'));
     const clips = contents.map(c => c.parentElement);
     const hintEl = $('.fly-hint'), hintText = $('.fly-hint__text');
@@ -275,22 +295,26 @@
       if (t < lo - .5 || t > hi + .5) return 0;
       return Math.max(0, d > 0 ? hi - t : t - lo);
     }
+    // Credits one action to the throttle. True once it has filled and the plane is away.
     function charge(d, add, i) {
       const next = i + d;
-      if (next < 0 || next >= ids.length) return;
+      if (next < 0 || next >= ids.length) return false;
       if (dir !== d) { energy = 0; dir = d; }
       energy = Math.min(1, energy + add);
-      if (energy >= 1) {
-        energy = 0;
-        goTo(next);
-      }
+      if (energy < 1) return false;
+      energy = 0;
+      goTo(next);
+      return true;
     }
     // One wheel/swipe input. Returns the delta Lenis may scroll by, or null to hold still.
-    function input(dy, kind) {
+    function input(dy, kind, held) {
       const now = lastT;
       const d = Math.sign(dy);
       if (!d) return null;
-      if (!gesture || gesture.dir !== d || (kind === 'wheel' && now - lastInput > QUIET)) gesture = { dir: d, gained: 0, inside: false };
+      // a new gesture: the first push, a turn-around, or the first push after the input went quiet
+      if (!gesture || gesture.dir !== d || now - lastInput > QUIET[kind]) {
+        gesture = { dir: d, t0: now, px: 0, events: 0, spent: 0, inside: false };
+      }
       lastInput = now;
       if (busy()) return null;
       const y = currentScroll();
@@ -303,10 +327,17 @@
       }
       // the scroll that carried a long section to its end doesn't count towards take-off
       if (gesture.inside) return null;
-      const add = Math.min(CAP - gesture.gained, Math.abs(dy) * PER_PX[kind]);
-      if (add > 0) {
-        gesture.gained += add;
-        charge(d, add, i);
+      // …and neither does a scroll spent reading a tile: spend the gesture out so letting go is the reset
+      if (held) { energy = 0; gesture.spent = SPEND; return null; }
+      gesture.px += Math.abs(dy);
+      gesture.events++;
+      const n = gesture.events;
+      const detents = n > 1 && gesture.px / n >= COARSE && (now - gesture.t0) / (n - 1) >= SPARSE;
+      const allow = detents ? SPEND : 1;
+      while (gesture.spent < allow && gesture.px >= STEP[kind] * (gesture.spent + 1)) {
+        gesture.spent++;
+        // one gesture only ever flies one hop: spending out stops it charging again on the far side
+        if (charge(d, 1 / NEED[kind], i)) { gesture.spent = SPEND; break; }
       }
       return null;
     }
@@ -318,7 +349,7 @@
       if (touch && ev.type !== 'touchmove') { if (ev.type === 'touchstart') gesture = null; return true; }
       if (!document.body.classList.contains('is-loaded')) { if (ev.cancelable) ev.preventDefault(); return false; }
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && !touch) return true;      // sideways belongs to the podium
-      const r = input(e.deltaY, touch ? 'touch' : 'wheel');
+      const r = input(e.deltaY, touch ? 'touch' : 'wheel', overTile(ev.target));
       if (ev.cancelable) ev.preventDefault();
       if (r === null) return false;
       if (touch) { lenis.scrollTo(lenis.targetScroll + r, { immediate: true }); return false; }
@@ -364,8 +395,12 @@
 
     function update(y, dt, now, at) {
       if (flying && now - flyT > 400 && !lenis.isScrolling) flying = false;
-      if (now - lastInput > HOLD) energy = Math.max(0, energy - LEAK * dt);
+      if (now - lastInput > HOLD) {
+        energy = Math.max(0, energy - LEAK * dt);
+        if (!energy) gesture = null;                 // a stale half-count never leaks into the next gesture
+      }
       if (busy()) energy = 0;
+      navThrottle(busy() ? 0 : energy);
       // left part-way through a hop: settle once the page has been still for a moment
       if (Math.abs(y - moveY) > .5) { moveDir = y > moveY ? 1 : -1; moveY = y; moveT = now; }
       else if (!busy() && !isGame() && now - moveT > 380 && now - lastInput > 380) settle(y, 0);
@@ -497,53 +532,46 @@
     return { get night() { return night; }, toggle };
   })();
 
-  // ---------- Nav progress: traces the notch outline, fillet to fillet ----------
-  const navRing = (() => {
-    const svg = $('.nav__ring');
-    const track = $('.nav__ring-track');
-    const fill = $('.nav__ring-fill');
-    const glow = $('.nav__ring-glow');
-    const head = $('.nav__ring-head');
-    let length = 1, value = 0, samples = null;
-    function draw() {
-      const w = nav.clientWidth, h = nav.clientHeight;
-      if (!w || !h) return;
-      const F = parseFloat(getComputedStyle(nav).getPropertyValue('--fillet')) || 24;
-      const R = parseFloat(getComputedStyle(nav).borderBottomLeftRadius) || 30;
-      const i = 1.1;
-      const L = F + i, Rt = F + w - i, B = h - i;
-      // down the left fillet, along the bottom, up the right fillet
-      const d = `M 0 ${i} A ${F} ${F} 0 0 1 ${L} ${F} L ${L} ${B - R} A ${R - i} ${R - i} 0 0 0 ${L + R - i} ${B} `
-        + `L ${Rt - R + i} ${B} A ${R - i} ${R - i} 0 0 0 ${Rt} ${B - R} L ${Rt} ${F} A ${F} ${F} 0 0 1 ${w + 2 * F} ${i}`;
-      svg.setAttribute('viewBox', `0 0 ${w + 2 * F} ${h}`);
-      [track, fill, glow].forEach(p => p.setAttribute('d', d));
-      length = fill.getTotalLength();
-      // sample the outline once, so the moving head never has to query the SVG (which forces a layout)
-      const N = 400;
-      samples = new Float32Array((N + 1) * 2);
-      for (let k = 0; k <= N; k++) {
-        const pt = fill.getPointAtLength(k / N * length);
-        samples[k * 2] = pt.x;
-        samples[k * 2 + 1] = pt.y;
-      }
-      set(value);
+  // ---------- Nav hairline + the Experience switch ----------
+  // The loading trace that used to crawl round the notch is gone; the notch wears a live rainbow border
+  // instead (css/styles.css). CSS owns the idle hue spin and every colour — all JS ever hands it is a
+  // number, so keep to the contract there and write nothing else.
+  //   --nav-border-progress  0..1, how much of the ring is lit (1 = the whole thing)
+  //   --nav-throttle         0..1, how full the take-off throttle is (ours; free for the stylesheet to ignore)
+  const navProp = name => {
+    let last = -1;
+    return p => {
+      const v = Math.round(clamp(p, 0, 1) * 200) / 200;
+      if (v === last) return;
+      last = v;
+      nav.style.setProperty(name, v);
+    };
+  };
+  const navBorder = navProp('--nav-border-progress');
+  const navThrottle = navProp('--nav-throttle');
+
+  // The nav's Experience button and the loader's mode cards are the same switch in two places: both go
+  // through Mode.set, and both repaint from `modechange`, so the label is right whoever threw it.
+  (() => {
+    const btn = $('[data-experience-toggle]');
+    if (!btn) return;
+    const label = $('.experience-toggle__label', btn);
+    const NAME = { peaceful: 'Peaceful', chaotic: 'Chaotic' };
+    const other = m => (m === 'peaceful' ? 'chaotic' : 'peaceful');
+    function paint() {
+      const m = Mode.value;
+      btn.dataset.mode = m;
+      btn.setAttribute('aria-pressed', String(m === 'peaceful'));
+      btn.setAttribute('aria-label', `Experience: ${NAME[m]}. Switch to ${NAME[other(m)]}`);
+      btn.title = `Switch to ${NAME[other(m)]}`;
+      if (label) label.textContent = NAME[m];
     }
-    function set(p) {
-      value = p;
-      const on = p > .0005 ? 1 : 0;
-      fill.style.strokeDashoffset = glow.style.strokeDashoffset = 1 - p;
-      fill.style.opacity = on;
-      glow.style.opacity = on * .35;
-      if (samples) {
-        const N = samples.length / 2 - 1, f = p * N, k = Math.min(N - 1, Math.floor(f)), u = f - k;
-        head.setAttribute('cx', (samples[k * 2] + (samples[k * 2 + 2] - samples[k * 2]) * u).toFixed(1));
-        head.setAttribute('cy', (samples[k * 2 + 1] + (samples[k * 2 + 3] - samples[k * 2 + 1]) * u).toFixed(1));
-      }
-      head.style.opacity = p > .0005 && p < .9995 ? 1 : 0;
-    }
-    new ResizeObserver(draw).observe(nav);
-    draw();
-    return { set, draw };
+    btn.addEventListener('click', () => {
+      if (window.Sfx && window.Sfx.ui) window.Sfx.ui();
+      Mode.set(other(Mode.value));
+    });
+    addEventListener('modechange', paint);
+    paint();
   })();
 
   // ---------- Score pill: top-right corner, dropped below the notch when they would touch ----------
@@ -817,7 +845,6 @@
       Flight.restEnds = ends;
       Flight.hop = HOP;
       main.style.setProperty('--track', `${y + vh}px`);
-      maxScroll = Math.max(1, y);
     }
 
     // One style write per letter: rise, drift, shrink and fade, while the colour glows ember-orange then greys to ash
@@ -962,7 +989,7 @@
   const railBtns = $$('.rail button');
   const cue = $('.scroll-cue');
   const cueInner = $('.scroll-cue__inner');
-  let lastY = scrollY, active = -1, lastT = performance.now(), lastProgress = -1, lastCue = -1;
+  let lastY = scrollY, active = -1, lastT = performance.now(), lastCue = -1;
 
   let clicked = 0, settleTime = 0, travelled = false;
   function lockIn(i) {
@@ -1040,11 +1067,10 @@
       cue.style.visibility = cueVis > 0 ? '' : 'hidden';
     }
 
-    const progress = Math.round(clamp((jump.active ? jump.y : y) / maxScroll, 0, 1) * 2000) / 2000;
-    if (progress !== lastProgress) {
-      lastProgress = progress;
-      navRing.set(progress);
-    }
+    // The hairline reads the flight: the ring empties as a section slides off and fills again as the next
+    // one lands, so a parked page is simply whole and the CSS hue spin has it to itself.
+    const bt = jump.active ? timeline(jump.y) : tl;
+    navBorder(bt.from === bt.to ? 1 : 1 - 2 * Math.min(bt.t, 1 - bt.t));
   }
 
   // ---------- Hero title split ----------
