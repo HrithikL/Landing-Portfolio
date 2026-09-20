@@ -1248,6 +1248,19 @@ ash-c { display: inline-block; }   /* opacity / transform / colour are written p
 @keyframes soundBar { 0% { transform: scaleY(.23); } 100% { transform: scaleY(1); } }
 @media (max-width: 560px) { .sound-toggle__label { display: none; } .sound-toggle { padding: 0 12px; } }
 
+/* ---------- Experience nav button: peaceful <-> chaotic (sits beside .sound-toggle) ---------- */
+.experience-toggle {
+  display: inline-flex; align-items: center; gap: 9px; height: 40px; padding: 0 16px; border-radius: var(--radius-pill);
+  font: 700 10.5px/14px var(--text); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-muted);
+  box-shadow: inset 0 0 0 1.5px var(--line-strong); transition: background var(--t-color), color var(--t-color), box-shadow var(--t-color);
+}
+.experience-toggle__icon { display: inline-flex; width: 14px; height: 14px; flex: none; }
+.experience-toggle[data-mode="peaceful"] { color: var(--rose-strong); box-shadow: inset 0 0 0 1.5px var(--blush); }
+.experience-toggle[data-mode="peaceful"]:hover { background: var(--blush-soft); color: var(--rose-strong); }
+.experience-toggle[data-mode="chaotic"] { color: var(--flare-strong); box-shadow: inset 0 0 0 1.5px var(--flare); }
+.experience-toggle[data-mode="chaotic"]:hover { background: var(--peach-soft); color: var(--flare-strong); }
+@media (max-width: 560px) { .experience-toggle__label { display: none; } .experience-toggle { padding: 0 12px; } }
+
 /* ---------- Podium hint: click to face north ---------- */
 .podium-hint {
   position: fixed; right: 22px; bottom: 28px; z-index: 21; pointer-events: none;
@@ -1497,6 +1510,32 @@ html.theme-vt { view-transition-name: none; }
 .sound-menu__row input:checked + i { background: var(--tangerine); }
 .sound-menu__row input:checked + i::after { transform: translateX(18px); }
 .sound-menu__row input:focus-visible + i { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+/* Volume sliders: fill reads off --p (0-1), same convention as .fly-hint__fill / loaderBar; unset falls back to half. */
+input.vol-slider[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 22px; background: transparent; cursor: pointer; }
+input.vol-slider[type="range"]::-webkit-slider-runnable-track {
+  height: 6px; border-radius: var(--radius-pill);
+  background: linear-gradient(90deg, var(--flare) 0 calc(var(--p, .5) * 100%), var(--line-strong) calc(var(--p, .5) * 100%) 100%);
+}
+input.vol-slider[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; margin-top: -7px; width: 20px; height: 20px; border-radius: 50%; background: var(--flare);
+  box-shadow: 0 2px 6px rgba(94, 45, 20, .35), 0 0 0 4px rgba(94, 45, 20, .08);
+  transition: transform var(--t-color), box-shadow var(--t-color);
+}
+input.vol-slider[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.08); }
+input.vol-slider[type="range"]:active::-webkit-slider-thumb { transform: scale(.96); box-shadow: 0 1px 4px rgba(94, 45, 20, .4), 0 0 0 6px rgba(94, 45, 20, .14); }
+input.vol-slider[type="range"]::-moz-range-track { height: 6px; border-radius: var(--radius-pill); background: var(--line-strong); }
+input.vol-slider[type="range"]::-moz-range-progress { height: 6px; border-radius: var(--radius-pill); background: var(--flare); }
+input.vol-slider[type="range"]::-moz-range-thumb {
+  width: 20px; height: 20px; border: none; border-radius: 50%; background: var(--flare);
+  box-shadow: 0 2px 6px rgba(94, 45, 20, .35), 0 0 0 4px rgba(94, 45, 20, .08);
+  transition: transform var(--t-color), box-shadow var(--t-color);
+}
+input.vol-slider[type="range"]:hover::-moz-range-thumb { transform: scale(1.08); }
+input.vol-slider[type="range"]:active::-moz-range-thumb { transform: scale(.96); box-shadow: 0 1px 4px rgba(94, 45, 20, .4), 0 0 0 6px rgba(94, 45, 20, .14); }
+input.vol-slider[type="range"]:focus-visible { outline: none; }
+input.vol-slider[type="range"]:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+input.vol-slider[type="range"]:focus-visible::-moz-range-thumb { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .sound-menu__status { margin: 4px 12px 6px; font-size: 12px; line-height: 17px; color: var(--ink-muted); }
 /* Experience switch inside the sound menu */
 .sound-menu__mode { display: grid; gap: 8px; margin-top: 4px; padding: 12px 12px 8px; border-top: 1px solid var(--line); }

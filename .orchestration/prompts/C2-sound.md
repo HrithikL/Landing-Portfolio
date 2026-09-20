@@ -44,3 +44,15 @@ When music is playing, the nav bar's rainbow border must become a live audio vis
 - `node --check js/sound.js` must pass.
 
 When done, output: (1) the exact CSS properties you write and how many bands, (2) the gain bus topology after your change, (3) any effect voice you had to re-route, (4) the localStorage keys you used, (5) risks.
+
+## Task 4 — Slider fill contract (ADDED MID-RUN — the CSS is already committed)
+
+The stylesheet agent finished and its slider styling is on disk. On WebKit/Chrome the filled portion of the track is drawn from a CSS custom property:
+
+`background: linear-gradient(90deg, var(--flare) 0 calc(var(--p, .5) * 100%), var(--line-strong) ...)`
+
+So you MUST set `--p` (a 0–1 number, NOT a percentage) as an inline style on each `input.vol-slider` element:
+- on initial render, from the restored localStorage value
+- on every `input` event as the user drags
+
+Without this the sliders are draggable and functional but render permanently at 50% fill in Chrome. Firefox uses `::-moz-range-progress` and fills natively, so test in Chrome. `--p` is an existing site convention (see `.fly-hint__fill`), so match how that is set.
