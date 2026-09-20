@@ -44,15 +44,18 @@
   // ---------- Night: the aurora ----------
   // Sky from top to bottom: near-black ink into a very dark plum near the horizon
   const SKY = [[0, hex('#010108')], [.45, hex('#05030c')], [1, hex('#100611')]];
-  // Curtains: each fans out from a distant origin (ox, y — high up, near the vanishing point) and droops
-  // further down the further a column sits from that origin ("spread"), so the ribbon arcs outward and
-  // downward toward the left and right edges instead of running as a flat horizontal band. "ray" is how
-  // far the light-shafts reach up at the origin itself; "rayGrow" lengthens them as they splay outward,
-  // since the shafts hang most visibly beneath the curtain's far, drooping edges.
+  // Curtains: each fans out from a distant origin high near the vanishing point and droops further down the
+  // further a column sits from that origin ("spread"), so the ribbon arcs outward and downward toward the left
+  // and right edges instead of running as a flat horizontal band. "ray" is how far the light-shafts reach up at
+  // the origin itself; "rayGrow" lengthens them as they splay outward, since the shafts hang most visibly
+  // beneath the curtain's far, drooping edges.
+  // Every origin sits at ox .5 and the droop/ripple are both driven by distance-from-centre, so each curtain is
+  // mirror-symmetric: the left and right edges fall by exactly the same amount and the band reads perfectly
+  // level. Nudging ox off centre makes one edge droop further than the other, which reads as a tilted sky.
   const CURTAINS = [
-    { ox: .58, y: -.04, spread: 1.15, ray: .16, rayGrow: .5, amp: .045, f1: 2.1, f2: 5.3, s1: .09, s2: .05, bright: .9, cols: ['#ff7a2f', '#ff4f9a', '#ffa43d'] },
-    { ox: .44, y: -.07, spread: 1.35, ray: .22, rayGrow: .62, amp: .06, f1: 1.5, f2: 4.1, s1: -.07, s2: .06, bright: 1, cols: ['#ff5fa2', '#ff8a3d', '#ff3d7f'] },
-    { ox: .52, y: -.01, spread: .95, ray: .26, rayGrow: .42, amp: .05, f1: 1.2, f2: 3.3, s1: .05, s2: -.04, bright: .75, cols: ['#ff9f45', '#ff6fb5', '#ff6d34'] },
+    { ox: .5, y: -.04, spread: 1.15, ray: .16, rayGrow: .5, amp: .045, f1: 2.1, f2: 5.3, s1: .09, s2: .05, bright: .9, cols: ['#ff7a2f', '#ff4f9a', '#ffa43d'] },
+    { ox: .5, y: -.07, spread: 1.35, ray: .22, rayGrow: .62, amp: .06, f1: 1.5, f2: 4.1, s1: -.07, s2: .06, bright: 1, cols: ['#ff5fa2', '#ff8a3d', '#ff3d7f'] },
+    { ox: .5, y: -.01, spread: .95, ray: .26, rayGrow: .42, amp: .05, f1: 1.2, f2: 3.3, s1: .05, s2: -.04, bright: .75, cols: ['#ff9f45', '#ff6fb5', '#ff6d34'] },
   ];
   CURTAINS.forEach((c, i) => { c.ph = i * 2.3 + Math.random() * 3; c.cols = c.cols.map(hex); });
   // One vertical ray, pre-drawn per colour: light concentrated at the curtain's lower edge, rays fading upwards.
@@ -214,8 +217,8 @@
         const nearM = Math.exp(-((X - mX) ** 2) / .012) * Math.exp(-((arch - mY) ** 2) / .08) * ptr.stir;
         const nearP = Math.exp(-((X - pX) ** 2) / .006) * Math.exp(-((arch - pY) ** 2) / .05) * plane.stir;
         const yN = arch
-          + c.amp * Math.sin(X * c.f1 * Math.PI + auroraT * c.s1 * 6 + c.ph)
-          + c.amp * .45 * Math.sin(X * c.f2 * Math.PI - auroraT * c.s2 * 9 + c.ph * 1.7)
+          + c.amp * Math.sin(spreadX * 2 * c.f1 * Math.PI + auroraT * c.s1 * 6 + c.ph)
+          + c.amp * .45 * Math.sin(spreadX * 2 * c.f2 * Math.PI - auroraT * c.s2 * 9 + c.ph * 1.7)
           + nearM * .05 * Math.sin(auroraT * 5 + X * 30)
           - nearP * .07;
         // rays: bright and dim streaks that slowly drift along the curtain
