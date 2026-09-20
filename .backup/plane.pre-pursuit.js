@@ -2184,20 +2184,8 @@
   let AIM_RANGE = 1.15;                                // wider in the full-screen dogfight
   // Peaceful mode (js/main.js): no shooting or fighting anywhere
   const peaceful = () => !!(window.Mode && window.Mode.peaceful);
-  // The dogfight is full screen, seen over our own tail like a shooter: while a round is on, the home podium glides
-  // to the middle of the screen and sinks below its bottom edge, so only the top of the plane shows (tail fin,
-  // upper wing, crew) and the rest of the screen is sky. GAME_VIEW is where the fuselage centre line sits
-  // (NDC y: -1 is the bottom edge) and GAME_NEAR how far the podium comes towards the camera.
-  let GAME_VIEW = -.68, GAME_NEAR = 1.6;
-  let gameShift = 0, podShift0 = 0, podDrop0 = 0, podNear0 = 0, gameLift = 0;
-  const gameAt = new V3();
-  // How far the parked plane must drop for its centre to sit at GAME_VIEW once it has come GAME_NEAR closer
-  function gameDrop() {
-    const z = restPts[0].z + GAME_NEAR;
-    gameAt.set(0, GAME_VIEW, .5).unproject(camera).sub(camera.position);
-    gameAt.multiplyScalar((z - camera.position.z) / gameAt.z).add(camera.position);
-    return gameAt.y - restPts[0].y;
-  }
+  // The dogfight is full screen: the home podium glides to the middle of the screen while a round is on
+  let gameShift = 0, podShift0 = 0;
   const aim = { yaw: NORTH, pointerX: null, byPointer: false, keys: 0 };
   const aiming = () => !!game && game.aiming;
   const nudgeAim = d => {
@@ -2301,14 +2289,6 @@
     defense.armed = true;
     if (parkedAt === 0 && game && game.invite) game.invite();
     if (sfx) sfx.ui();
-  });
-  // The Home page's "Dog fight" agenda item (js/main.js): turn to face north on the home podium, which asks to play
-  addEventListener('dogfight:invite', () => {
-    if (parkedAt !== 0 || !game || game.state !== 'idle') return;
-    const want = NORTH - poseYawFor(0);
-    spinTargets[0] = want + Math.round((spins[0] - want) / TAU) * TAU;
-    defense.armed = true;
-    game.invite();
   });
   function placeHint() {
     const hudEl = document.querySelector('.hud');
@@ -3016,8 +2996,7 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
     const R = PODIUM_R * scale * introE, T = 1.6 * scale * introE;
     const top = .04 * T;
     const rest = restPts[index];
-    const home = index === 0;
-    p.rig.position.set(rest.x + (home ? podShift0 : 0), rest.y - top - groundHeight(GROUND_PITCH) * sPlane + (home ? podDrop0 : 0), rest.z + (home ? podNear0 : 0));
+    p.rig.position.set(rest.x + (index === 0 ? podShift0 : 0), rest.y - top - groundHeight(GROUND_PITCH) * sPlane, rest.z);
     p.rig.rotation.set(PODIUM_TILT, spins[index], 0);
     p.rig.updateMatrixWorld(true);
     p.mesh.scale.set(R, T, R);
@@ -3644,8 +3623,7 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
   // Point `yaw` at the target band ahead of the guns
   const gunV = new V3();
   const gunAt = (out, sPlane) => out.copy(plane.position).setY(plane.position.y + .62 * sPlane);
-  // (raised by gameLift in the dogfight, so the sight stays up in the sky while the plane sits low)
-  const aimPoint = (from, yaw, out) => out.set(from.x + Math.cos(yaw) * 22, from.y + 2.2 * scale + gameLift, from.z - Math.sin(yaw) * 22);
+  const aimPoint = (from, yaw, out) => out.set(from.x + Math.cos(yaw) * 22, from.y + 2.2 * scale, from.z - Math.sin(yaw) * 22);
   // Yaw whose aim point sits under screen x (bigger yaw = further left)
   function yawForScreenX(px, from) {
     let lo = NORTH - AIM_RANGE, hi = NORTH + AIM_RANGE;
@@ -3712,7 +3690,7 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
   }
 
   // Inspection hook for development only: open the page with ?debug
-  if (/[?&]debug\b/.test(location.search)) window.__plane = { routes: () => ({ downRoutes, upRoutes }), THREE, scene, camera, renderer, plane, model, explode, dogfight, podiums, game, spins, spinTargets, aim, troops, missiles, step: d => step(d), takeHit, hitPoint, dmg, holes, defense, gameView: (v, n) => { GAME_VIEW = v; GAME_NEAR = n; } };
+  if (/[?&]debug\b/.test(location.search)) window.__plane = { routes: () => ({ downRoutes, upRoutes }), THREE, scene, camera, renderer, plane, model, explode, dogfight, podiums, game, spins, spinTargets, aim, troops, missiles, step: d => step(d), takeHit, hitPoint, dmg, holes, defense };
 
   // ---------- Crew animation ----------
   // The stick follows the plane's real roll and pitch rates, the throttle follows the engine, the gunner's grips
@@ -3888,19 +3866,9 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
   // The plane's place on screen, for the page's background gradient (js/gradient.js) to react to
   const planeNdc = new V3();
   const planeScreen = Flight.planeScreen = { x: innerWidth * .7, y: innerHeight * .6, k: 0 };
-  // While a full-screen reader covers the page (js/main.js sets Flight.sceneOff once the scene has faded out),
-  // the scene isn't simulated or drawn at all, and the engine goes quiet
-  let sceneWasOff = false;
   function frame() {
     requestAnimationFrame(frame);
-    const dt = clock.getDelta();
-    if (Flight.sceneOff) {
-      if (!sceneWasOff && sfx) sfx.engine(0, 0, 0);
-      sceneWasOff = true;
-      return;
-    }
-    sceneWasOff = false;
-    step(dt);
+    step(clock.getDelta());
   }
 
   function step(rawDt) {
@@ -3937,11 +3905,7 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
     AIM_RANGE = game && game.aiming ? 1.42 : 1.15;
     gameShift += ((inRoundNow ? 1 : 0) - gameShift) * damp(1.8, dt);
     if (Math.abs(gameShift - (inRoundNow ? 1 : 0)) < .001) gameShift = inRoundNow ? 1 : 0;
-    const gs = gameShift * gameShift * (3 - 2 * gameShift);
-    podShift0 = -restPts[0].x * gs;
-    podDrop0 = gs > 0 ? gameDrop() * gs : 0;
-    podNear0 = GAME_NEAR * gs;
-    gameLift = -podDrop0;
+    podShift0 = -restPts[0].x * gameShift * gameShift * (3 - 2 * gameShift);
     const sPlane = scale * Math.max(.001, introE);
     mouse.sx += (mouse.x - mouse.sx) * damp(4, dt);
     mouse.sy += (mouse.y - mouse.sy) * damp(4, dt);
@@ -4171,7 +4135,7 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
         facing: off < 20,
         away: off > 40,
         head: toScreen(plane.localToWorld(fxA.copy(model.pilotHead))),
-        arena: toScreen(fxB.copy(gunPos).setY(gunPos.y + 2.4 * scale + gameLift)),
+        arena: toScreen(fxB.copy(gunPos).setY(gunPos.y + 2.4 * scale)),
       });
       if (game.aiming) {
         if (aim.byPointer && aim.pointerX !== null) aim.yaw = yawForScreenX(aim.pointerX, gunPos);
@@ -4314,7 +4278,6 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
         busy: !idleGame || defense.on,
         playing: (!!game && game.state === 'play') || defense.on,
         G: gunPos,
-        lift: gameLift,
         side: inRoundNow ? 0 : plane.position.x >= 0 ? 1 : -1,
       });
       if (jumping) keepApart();

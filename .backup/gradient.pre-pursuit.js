@@ -1,12 +1,11 @@
 /* =========================================================
    Background sky, drawn small and stretched by the GPU (so the blur is free).
-   Day: a living mesh gradient in the Solar Pop palette, graded for contrast (an "HDR" look): deep coral,
-   pink and amber fields around a bright cream core, with the corners burnt in a little. The fields drift
-   on slow orbits; the cursor pulls them around and shifts their colours, a warm glow follows it, and the
-   plane drags the fields along in its wake.
-   Night: a candy aurora over a near-black plum sky. Curtains of candy orange and pink light hang across
-   the top of the screen with rays reaching up and a bright, hot lower edge; they ripple and brighten
-   where the cursor is and flare and bend where the plane flies through.
+   Day: a living mesh gradient in the Solar Pop palette. Soft colour fields drift on slow orbits;
+   the cursor pulls them around and shifts their colours, a warm glow follows it, and the plane
+   drags the fields along in its wake.
+   Night: an aurora over a deep blue-green sky. Curtains of green, emerald and lime light hang across
+   the top of the screen with rays reaching up; they ripple and brighten where the cursor is and
+   flare and bend where the plane flies through.
    ========================================================= */
 (() => {
   const canvas = document.querySelector('.bg__mesh');
@@ -21,16 +20,14 @@
   // Each field: orbit centre (0..1), orbit size, radius (x the long side), depth (how much it follows the
   // pointer), and the two colours it moves between as the cursor crosses the screen
   const FIELDS = [
-    { cx: .14, cy: .18, ox: .10, oy: .08, r: .52, depth: .9, w: .11, day: ['#ff9a5c', '#ff94b4', .82] },
-    { cx: .86, cy: .14, ox: .08, oy: .10, r: .56, depth: .6, w: .08, day: ['#ffb0c4', '#ffab4f', .9] },
-    { cx: .78, cy: .86, ox: .12, oy: .07, r: .5, depth: 1.1, w: .09, day: ['#ff9b3d', '#ff5f8a', .78] },
-    { cx: .26, cy: .9, ox: .09, oy: .06, r: .44, depth: .75, w: .13, day: ['#ff6f91', '#ff8a3d', .58] },
-    { cx: .52, cy: .46, ox: .16, oy: .12, r: .42, depth: .5, w: .07, day: ['#fff8ee', '#fff1dc', .95] },
-    { cx: .04, cy: .62, ox: .06, oy: .12, r: .4, depth: 1.3, w: .1, day: ['#ffd3bd', '#ffeccc', .9] },
+    { cx: .14, cy: .18, ox: .10, oy: .08, r: .52, depth: .9, w: .11, day: ['#fcaf7b', '#ffd2da', .78] },
+    { cx: .86, cy: .14, ox: .08, oy: .10, r: .56, depth: .6, w: .08, day: ['#ffd2da', '#fbbd76', .9] },
+    { cx: .78, cy: .86, ox: .12, oy: .07, r: .5, depth: 1.1, w: .09, day: ['#fbbd76', '#ff839b', .62] },
+    { cx: .26, cy: .9, ox: .09, oy: .06, r: .44, depth: .75, w: .13, day: ['#ff839b', '#fcaf7b', .36] },
+    { cx: .52, cy: .46, ox: .16, oy: .12, r: .42, depth: .5, w: .07, day: ['#fff2d7', '#ffe4d9', .85] },
+    { cx: .04, cy: .62, ox: .06, oy: .12, r: .4, depth: 1.3, w: .1, day: ['#ffe4d9', '#fff2d7', .9] },
   ];
-  const BASE_DAY = hex('#fce3cb');
-  // contrast grade: the corners burn in a little, and a bright cream core lifts the middle
-  const VIGNETTE_DAY = hex('#c8421e'), CORE_DAY = hex('#fffaf2');
+  const BASE_DAY = hex('#fdf0e0');
   const CURSOR_DAY = [hex('#ff6d34'), hex('#ef4a76'), .2];
   const WAKE_DAY = [hex('#ff6d34'), .26];
   FIELDS.forEach((f, i) => {
@@ -40,18 +37,17 @@
   });
 
   // ---------- Night: the aurora ----------
-  // Sky from top to bottom: near-black ink into a very dark plum near the horizon
-  const SKY = [[0, hex('#010108')], [.45, hex('#05030c')], [1, hex('#100611')]];
+  // Sky from top to bottom: deep navy-teal, into a dark green-blue near the horizon
+  const SKY = [[0, hex('#020a16')], [.45, hex('#04151f')], [1, hex('#061d1f')]];
   // Curtains: where their lower edge hangs (fraction of the height), how far the rays reach up, how they wave,
   // and the colours they run through along their length
   const CURTAINS = [
-    { y: .2, ray: .2, amp: .045, f1: 2.1, f2: 5.3, s1: .09, s2: .05, bright: .9, cols: ['#ff7a2f', '#ff4f9a', '#ffa43d'] },
-    { y: .33, ray: .3, amp: .06, f1: 1.5, f2: 4.1, s1: -.07, s2: .06, bright: 1, cols: ['#ff5fa2', '#ff8a3d', '#ff3d7f'] },
-    { y: .46, ray: .34, amp: .05, f1: 1.2, f2: 3.3, s1: .05, s2: -.04, bright: .75, cols: ['#ff9f45', '#ff6fb5', '#ff6d34'] },
+    { y: .2, ray: .2, amp: .045, f1: 2.1, f2: 5.3, s1: .09, s2: .05, bright: .9, cols: ['#39ff88', '#b6ff3b', '#12d27a'] },
+    { y: .33, ray: .3, amp: .06, f1: 1.5, f2: 4.1, s1: -.07, s2: .06, bright: 1, cols: ['#1fe08a', '#7dff4d', '#0fbf8f'] },
+    { y: .46, ray: .34, amp: .05, f1: 1.2, f2: 3.3, s1: .05, s2: -.04, bright: .75, cols: ['#12c98a', '#3dff9e', '#9cff3a'] },
   ];
   CURTAINS.forEach((c, i) => { c.ph = i * 2.3 + Math.random() * 3; c.cols = c.cols.map(hex); });
-  // One vertical ray, pre-drawn per colour: light concentrated at the curtain's lower edge, rays fading upwards.
-  // The lower edge burns hot: a thin band of the same colour pushed most of the way to a peachy cream.
+  // One vertical ray, pre-drawn per colour: light concentrated at the curtain's lower edge, rays fading upwards
   const RAY_H = 128;
   const raySprite = rgb => {
     const s = document.createElement('canvas');
@@ -59,21 +55,19 @@
     const g = s.getContext('2d');
     const gr = g.createLinearGradient(0, 0, 0, RAY_H);
     const c = `${rgb[0]},${rgb[1]},${rgb[2]}`;
-    const hot = rgb.map((v, i) => Math.round(v + ([255, 236, 214][i] - v) * .62)).join(',');
     gr.addColorStop(0, `rgba(${c},0)`);
     gr.addColorStop(.55, `rgba(${c},.35)`);
-    gr.addColorStop(.82, `rgba(${c},1)`);
-    gr.addColorStop(.875, `rgba(${hot},1)`);
-    gr.addColorStop(.93, `rgba(${c},.5)`);
+    gr.addColorStop(.86, `rgba(${c},1)`);
+    gr.addColorStop(.92, `rgba(${c},.55)`);
     gr.addColorStop(1, `rgba(${c},0)`);
     g.fillStyle = gr;
     g.fillRect(0, 0, 1, RAY_H);
     return s;
   };
   CURTAINS.forEach(c => { c.sprites = c.cols.map(raySprite); });
-  const AIRGLOW = hex('#2c0c22');
-  const CURSOR_NIGHT = [hex('#ff6fb5'), hex('#ffa43d'), .14];
-  const WAKE_NIGHT = [hex('#ff8a3d'), .16];
+  const AIRGLOW = hex('#0c3b2c');
+  const CURSOR_NIGHT = [hex('#2bff8e'), hex('#b6ff3b'), .14];
+  const WAKE_NIGHT = [hex('#7dff4d'), .16];
 
   const SCALE = 1 / 5;
   let W = 1, H = 1, cw = 1, ch = 1;
@@ -159,18 +153,6 @@
       blob(ptr.sx, ptr.sy, L * (.26 + speed * .04), cC, CURSOR_DAY[2] * (1 + speed * .4));
     }
     if (plane.ok) blob(plane.sx, plane.sy, L * (.18 + plane.k * .1), WAKE_DAY[0], WAKE_DAY[1] * (.3 + plane.k * .7));
-    // grade: a soft cream highlight in the middle and burnt-in corners, for depth and contrast
-    const cx = cw * (.5 + (mx - .5) * .08), cy = ch * (.44 + (my - .5) * .06);
-    const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(cw, ch) * .42);
-    core.addColorStop(0, rgba(CORE_DAY, .42));
-    core.addColorStop(1, rgba(CORE_DAY, 0));
-    ctx.fillStyle = core;
-    ctx.fillRect(0, 0, cw, ch);
-    const vig = ctx.createRadialGradient(cw / 2, ch / 2, Math.min(cw, ch) * .35, cw / 2, ch / 2, Math.hypot(cw, ch) * .62);
-    vig.addColorStop(0, rgba(VIGNETTE_DAY, 0));
-    vig.addColorStop(1, rgba(VIGNETTE_DAY, .2));
-    ctx.fillStyle = vig;
-    ctx.fillRect(0, 0, cw, ch);
     ctx.globalAlpha = 1;
   }
 
@@ -181,7 +163,7 @@
     SKY.forEach(([o, c]) => sky.addColorStop(o, rgba(c, 1)));
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, cw, ch);
-    // a faint plum airglow under the curtains
+    // a faint green airglow under the curtains
     const glow = ctx.createLinearGradient(0, 0, 0, ch * .75);
     glow.addColorStop(0, rgba(AIRGLOW, 0));
     glow.addColorStop(.55, rgba(AIRGLOW, .55));
@@ -223,7 +205,7 @@
       }
     }
     ctx.globalCompositeOperation = 'source-over';
-    // soft candy glows for the cursor and the plane's wake
+    // soft green glows for the cursor and the plane's wake
     ctx.globalAlpha = a;
     if (ptr.seen) {
       mixC(CURSOR_NIGHT[0], CURSOR_NIGHT[1], mx, cC);

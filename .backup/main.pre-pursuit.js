@@ -256,7 +256,7 @@
     let energy = 0, dir = 0, gesture = null, lastInput = 0;
     let strain = 0, strainEl = null, strainStr = '', hintStr = '', hintOn = false, hintP = -1;
     let moveY = currentScroll(), moveT = performance.now(), moveDir = 1;
-    const isGame = () => document.documentElement.classList.contains('is-game') || document.documentElement.classList.contains('is-overlay');
+    const isGame = () => document.documentElement.classList.contains('is-game');
     const busy = () => flying || jump.active || pendingGo >= 0;
 
     // Part-way through a hop: finish it (in direction d, or by the 80% rule when d is 0)
@@ -680,7 +680,7 @@
   })();
 
   // ---------- Split text into characters ----------
-  const SKIP = '[data-count], [data-live], #clock, #copy-hint, .marquee, script, style, svg, textarea, input, template';
+  const SKIP = '[data-count], #clock, #copy-hint, .marquee, script, style, svg, textarea, input';
   function charify(root) {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode: n => (!n.nodeValue.trim() || n.parentElement.closest(SKIP) || n.parentElement.closest('ash-t')
@@ -984,13 +984,16 @@
     setTimeout(() => s.classList.remove('is-locked'), 1000);
   }
 
+  const bgLayer = $('.bg');
   function setActive(i) {
     if (i === active) return;
     active = i;
     sections.forEach((s, k) => s.classList.toggle('is-current', k === i));
+    bgLayer.dataset.side = sections[i].dataset.side;      // the sun and moon keep to the empty side (scoped: no full-page restyle)
     const id = ids[i];
     navLinks.forEach(a => a.classList.toggle('is-active', a.dataset.goto === id));
     railBtns.forEach(b => b.classList.toggle('is-active', b.dataset.goto === id));
+    facts.onSection(id);
   }
 
   function tick(now) {
@@ -1227,10 +1230,98 @@
     });
   }
 
+  // ---------- Fun facts ----------
+  const facts = (() => {
+    const LIST = [
+      ['Origin story', 'I got obsessed with computers after breaking Windows — by editing registry values I probably shouldn’t have touched.'],
+      ['Origin story', 'I fixed that broken PC myself, armed with YouTube tutorials, XDA guides and a lot of forum threads.'],
+      ['Why code', 'Beautiful websites with advanced animation are what made me want to learn to code in the first place.'],
+      ['Career', 'I went from Customer Onboarding Analyst to AI Developer in just 13 months.'],
+      ['Shipping', 'Carrier Pre-Alerts went from idea to production in one week — including a live bug fixed the same morning.'],
+      ['Engineering', 'One of my booking bots can never send a second truck. It’s idempotent by construction.'],
+      ['Debugging', 'I once retracted my own diagnosis when the measurements disagreed — and found the real bug because of it.'],
+      ['Debugging', 'I cracked a “phantom bookings” mystery by reproducing a failure that looked exactly like a success.'],
+      ['Speed', 'A reconciliation run that took 40 seconds now takes 9 — and 500 consignments go through in about six minutes.'],
+      ['Automation', 'A finished Teams meeting becomes HubSpot notes and a call log in about a minute, with zero manual steps.'],
+      ['Automation', 'Pre-Alerts cover six states, and adding a new carrier is a single Excel row.'],
+      ['By the numbers', 'The Customer Service Automation Suite is about 14,600 lines of Python across ten composable skills.'],
+      ['By the numbers', 'I wrote 95 of the 147 commits on that suite and merged 51 pull requests.'],
+      ['Reverse engineering', 'I found the tenant-cookie quirk that finally made a legacy portal’s headless login work.'],
+      ['Cloud', 'TGE bookings now run fully in the cloud — on a portal everyone assumed needed an office PC.'],
+      ['Docs', 'I’ve written 11 SOP and agent-skill documents that people and AI agents both work from.'],
+      ['Reliability', 'My report rules run as deterministic Python, not model interpretation, so every report can be reproduced.'],
+      ['Design roots', 'Before AI, I was a UI designer: wireframes, prototypes and usability tests.'],
+      ['Study', 'I hold a Master of IT in Data Analytics from Deakin University in Melbourne.'],
+      ['Workflow', 'I’m strong on concepts and debugging; AI lets me turn specs into software at full speed.'],
+      ['Off the clock', 'You’ll often find me on a badminton court — fast rallies, quick reflexes, head fully cleared.'],
+      ['Player one', 'My game library runs from competitive shooters to huge adventure worlds and horror that keeps the lights on.'],
+    ];
+    const DWELL = 8500;
+    const el = $('#fact');
+    const tag = $('#fact-tag');
+    const num = $('#fact-num');
+    const total = $('#fact-total');
+    const track = $('#fact-track');
+    const card = el && el.closest('.bento__fact');
+    if (!el || !track) return { onSection() {} };
+    const pad = n => String(n).padStart(2, '0');
+    total.textContent = pad(LIST.length);
+    track.style.setProperty('--fact-ms', `${DWELL}ms`);
+    track.innerHTML = LIST.map(() => '<i></i>').join('');
+    const bars = [...track.children];
+    const seen = new Set([0]);
+    let idx = 0, here = false, hover = false, swapping = false;
+    const random = sections.find(s => s.contains(el));
+
+    function paintTrack() {
+      bars.forEach((b, i) => {
+        b.classList.toggle('is-seen', seen.has(i) && i !== idx);
+        b.classList.remove('is-on');
+      });
+      void track.offsetWidth;                  // restart the timer animation
+      bars[idx].classList.add('is-on');
+    }
+    function run() {
+      track.style.setProperty('--fact-run', here && !hover && !swapping && !document.hidden && !reduced ? 'running' : 'paused');
+    }
+    function show(i) {
+      if (swapping) return;
+      idx = (i + LIST.length) % LIST.length;
+      seen.add(idx);
+      swapping = true;
+      run();
+      el.classList.add('is-swapping');
+      tag.style.opacity = 0;
+      setTimeout(() => {
+        el.textContent = LIST[idx][1];
+        tag.textContent = LIST[idx][0];
+        num.textContent = pad(idx + 1);
+        tag.style.opacity = '';
+        charify(el);
+        stage.markDirty(sections.indexOf(random));
+        el.classList.remove('is-swapping');
+        swapping = false;
+        paintTrack();
+        run();
+      }, 320);
+    }
+    $('#shuffle').addEventListener('click', () => show(idx + 1 + Math.floor(Math.random() * (LIST.length - 1))));
+    $('#fact-next').addEventListener('click', () => show(idx + 1));
+    $('#fact-prev').addEventListener('click', () => show(idx - 1));
+    track.addEventListener('animationend', () => show(idx + 1));
+    card.addEventListener('pointerenter', () => { hover = true; run(); });
+    card.addEventListener('pointerleave', () => { hover = false; run(); });
+    document.addEventListener('visibilitychange', run);
+    tag.textContent = LIST[0][0];
+    paintTrack();
+    run();
+    return { onSection(id) { here = id === (random && random.id); run(); } };
+  })();
+
   // ---------- Copy email ----------
   const copyBtn = $('#copy-email');
   const hint = $('#copy-hint');
-  if (copyBtn) copyBtn.addEventListener('click', async () => {
+  copyBtn.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(copyBtn.dataset.email);
       hint.textContent = 'Copied ✓';
@@ -1238,6 +1329,15 @@
       hint.textContent = 'Select & copy';
     }
     setTimeout(() => { hint.textContent = 'Copy'; }, 1800);
+  });
+
+  // ---------- Contact form (opens the visitor's mail client) ----------
+  $('#contact-form').addEventListener('submit', e => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const subject = `Project enquiry from ${f.get('name')}`;
+    const body = `${f.get('message')}\n\n— ${f.get('name')} (${f.get('email')})`;
+    location.href = `mailto:${copyBtn.dataset.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   });
 
   // ---------- Keyboard: tabbing into another section flies there ----------
@@ -1251,55 +1351,10 @@
   // ---------- Clock & year ----------
   const clock = $('#clock');
   const fmt = new Intl.DateTimeFormat('en-AU', { hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Melbourne', hour12: true, timeZoneName: 'short' });
-  const tickClock = () => { if (clock) clock.textContent = fmt.format(new Date()); };
+  const tickClock = () => { clock.textContent = fmt.format(new Date()); };
   tickClock();
   setInterval(tickClock, 20000);
-  if ($('#year')) $('#year').textContent = new Date().getFullYear();
-
-  // ---------- Content that changes after load (js/content.js) ----------
-  // New text is split into letters for the burner, and the page re-measures (a taller section may now scroll)
-  Flight.refresh = el => {
-    if (!el) return;
-    charify(el);
-    const i = sections.findIndex(sec => sec.contains(el));
-    if (i >= 0) stage.markDirty(i);
-    queueMeasure();
-  };
-
-  // ---------- Overlays: the full-screen news reader and the About me panels ----------
-  // The page holds still underneath (no scrolling, no flying); the reader also hides the plane, and once the
-  // scene has faded out plane.js stops drawing it (Flight.sceneOff). Escape closes whichever is open.
-  let overlayOpts = null, sceneTimer = 0;
-  Flight.overlay = (on, opts = {}) => {
-    const root = document.documentElement;
-    clearTimeout(sceneTimer);
-    if (on) {
-      overlayOpts = opts;
-      if (lenis) lenis.stop();
-      root.classList.add('is-overlay');
-      if (opts.hideScene) {
-        root.classList.add('is-reading');
-        sceneTimer = setTimeout(() => { Flight.sceneOff = true; }, reduced ? 0 : 750);
-      }
-    } else {
-      overlayOpts = null;
-      Flight.sceneOff = false;
-      root.classList.remove('is-overlay', 'is-reading');
-      if (lenis && !root.classList.contains('is-game')) lenis.start();
-    }
-  };
-  addEventListener('keydown', e => {
-    if (e.key === 'Escape' && overlayOpts && overlayOpts.onEscape) { e.preventDefault(); overlayOpts.onEscape(); }
-  });
-
-  // ---------- Home: "Dog fight" on the agenda ----------
-  // It lives on the Home screen and only exists in Chaotic mode: switch to it if needed, then turn the plane north,
-  // which asks whether to start a round
-  $$('[data-dogfight]').forEach(b => b.addEventListener('click', () => {
-    const invite = () => dispatchEvent(new CustomEvent('dogfight:invite'));
-    if (Mode.peaceful) { Mode.set('chaotic'); setTimeout(invite, 300); } else invite();
-    if (window.Sfx && window.Sfx.ui) window.Sfx.ui();
-  }));
+  $('#year').textContent = new Date().getFullYear();
 
   // Inspection hook for development only: open the page with ?debug
   if (/[?&]debug\b/.test(location.search)) {

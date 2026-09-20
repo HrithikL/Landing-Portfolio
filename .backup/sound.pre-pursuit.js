@@ -1,12 +1,15 @@
 /* =========================================================
-   Sound — effects synthesised with WebAudio; music streamed from three audio files.
+   Sound — synthesised with WebAudio, no audio files.
 
-   - effects: a small bank of variations rendered ahead of time with OfflineAudioContext, played through a
-     voice manager (per-sound voice limits, oldest voice fades out), so heavy gunfire never floods the audio
-     thread. Gunfire and rocket launches are synthesised to sound like the real thing.
-   - music: "Dawn", "Embrace" and "Awake" by Sappheiros (CC BY 3.0), played as a playlist and picked from the
-     song button in the nav. Peaceful mode starts on Dawn, Chaotic on Awake.
+   Everything is rendered ahead of time with OfflineAudioContext, then played back as plain buffers:
+   - effects: a small bank of pre-rendered variations, played through a voice manager
+     (per-sound voice limits, oldest voice fades out), so heavy gunfire never floods the audio thread;
+   - music: both soundtracks are rendered once (in short chunks, between frames) into looping buffers,
+     so nothing on the main thread can make them stutter.
    The master chain ends in a glue compressor and a limiter, so stacked sounds never clip.
+
+   Background soundtrack "Dogfight" (the mini-game's track: A minor, 125 BPM, light drums), picked from the
+   song button in the nav. Gunfire and rocket launches are synthesised to sound like the real thing.
 
    Browsers only allow audio after a click, tap or key press, so sound starts on the first interaction.
    The nav "Sound" button opens a small menu with separate Music and Effects switches (remembered).
@@ -20,9 +23,9 @@
   const rnd = (a, b) => a + Math.random() * (b - a);
   const hz = n => 440 * Math.pow(2, (n - 69) / 12);
   const VOLUME = .8;
-  const NOISE_RATE = 32000;          // sample rate of the shared noise buffer
+  const MUSIC_RATE = 32000;          // render rate for the soundtracks (keeps the buffers small)
 
-  const prefs = { music: true, fx: true, track: '' };
+  const prefs = { music: true, fx: true, track: 'dogfight' };
   try {
     const saved = JSON.parse(localStorage.getItem(KEY));
     if (saved) Object.assign(prefs, saved);
@@ -47,7 +50,7 @@
   let noise = null;
   function noiseBuffer() {
     if (noise) return noise;
-    noise = newBuffer(1, NOISE_RATE * 2, NOISE_RATE);
+    noise = newBuffer(1, MUSIC_RATE * 2, MUSIC_RATE);
     const d = noise.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     return noise;
@@ -465,117 +468,487 @@
 
 
   // =========================================================
-  // Soundtrack: three pieces by Sappheiros (Creative Commons BY 3.0, credited in the Credits section),
-  // streamed from assets/audio and played as one playlist: the chosen song, then on through the others.
-  // Each <audio> element is routed through the music bus, so the Music switch and the ducking under big
-  // blasts still apply to it.
+  // Offline song renderer
+  // A song = { bpm, bars, makeBus(ctx), play(bus, step, time) }. Rendered in chunks of a few bars;
+  // each chunk carries a reverb tail that is mixed into the following bars (and wrapped around the loop).
+  // =========================================================
+  // Build audio in small slices during idle time, with at most two chunks rendering at once,
+  // so preparing the soundtrack never steals frames from the animation
+  const idleWait = () => new Promise(r => (window.requestIdleCallback
+    ? requestIdleCallback(() => r(), { timeout: 120 })
+    : setTimeout(r, 16)));
+  async function renderSong(song, fromBar, toBar, loop, onStatus) {
+    const rate = MUSIC_RATE;
+    const SPB = song.steps || 16, STEP = 60 / song.bpm / 4, BAR = STEP * SPB;
+    const TAIL = song.tail || 3.4, CHUNK = 2;
+    const len = Math.round((toBar - fromBar) * BAR * rate);
+    const total = loop ? len : len + Math.round(TAIL * rate);
+    const L = new Float32Array(total), R = new Float32Array(total);
+    const inflight = new Set();
+    let done = 0, chunks = 0;
+    for (let b = fromBar; b < toBar; b += CHUNK) chunks++;
+    for (let b = fromBar; b < toBar; b += CHUNK) {
+      while (inflight.size >= 2) await Promise.race(inflight);
+      const bars = Math.min(CHUNK, toBar - b);
+      const oc = new OAC(2, Math.ceil((bars * BAR + TAIL) * rate), rate);
+      C = oc;
+      const bus = song.makeBus(oc);
+      for (let s0 = b * SPB; s0 < (b + bars) * SPB; s0 += 8) {
+        C = oc;
+        for (let s = s0; s < Math.min(s0 + 8, (b + bars) * SPB); s++) song.play(bus, s, (s - b * SPB) * STEP);
+        await idleWait();
+      }
+      const off = Math.round((b - fromBar) * BAR * rate);
+      const job = renderDone(oc).then(buf => {
+        const bl = buf.getChannelData(0), br = buf.getChannelData(1);
+        for (let j = 0; j < bl.length; j++) {
+          let q = off + j;
+          if (q >= total) { if (!loop) break; q %= total; }
+          L[q] += bl[j];
+          R[q] += br[j];
+        }
+        done++;
+        if (onStatus) onStatus(done / chunks);
+      });
+      inflight.add(job);
+      job.then(() => inflight.delete(job));
+    }
+    await Promise.all(inflight);
+    const out = newBuffer(2, total, rate);
+    out.copyToChannel ? (out.copyToChannel(L, 0), out.copyToChannel(R, 1)) : (out.getChannelData(0).set(L), out.getChannelData(1).set(R));
+    return out;
+  }
+  function peakOf(buf) {
+    let p = 0;
+    for (let ch = 0; ch < buf.numberOfChannels; ch++) {
+      const d = buf.getChannelData(ch);
+      for (let i = 0; i < d.length; i += 3) { const v = Math.abs(d[i]); if (v > p) p = v; }
+    }
+    return p;
+  }
+  // ---------- Game track: 125 BPM, A minor, one-bar count-in then a 16-bar loop ----------
+  const arcade = (() => {
+    const BPM = 125, STEP = 60 / BPM / 4;
+    const CHORDS = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]];
+    const ROOTS = [33, 29, 36, 31];
+    function makeBus(oc) {
+      const out = oc.createGain();
+      out.gain.value = .6;
+      out.connect(oc.destination);
+      const drums = oc.createGain();
+      drums.gain.value = .55;
+      drums.connect(out);
+      const duck = oc.createGain();
+      duck.connect(out);
+      const synth = oc.createGain();
+      synth.gain.value = .5;
+      synth.connect(duck);
+      const delay = oc.createDelay(1);
+      delay.delayTime.value = STEP * 3;
+      const fb = oc.createGain();
+      fb.gain.value = .32;
+      const damp = oc.createBiquadFilter();
+      damp.type = 'lowpass';
+      damp.frequency.value = 2400;
+      delay.connect(damp); damp.connect(fb); fb.connect(delay); damp.connect(duck);
+      return { out, drums, duck, synth, delay };
+    }
+    const kick = (B, t, v = 1) => {
+      tone({ t, dest: B.drums, f: 160, f2: 40, attack: .001, peak: 1.05 * v, decay: .3 });
+      hiss({ t, dest: B.drums, type: 'highpass', f: 3000, peak: .08 * v, decay: .012 });
+      B.duck.gain.cancelScheduledValues(t);
+      B.duck.gain.setValueAtTime(.3, t);
+      B.duck.gain.linearRampToValueAtTime(1, t + .2);
+    };
+    const snare = (B, t, v = 1) => {
+      hiss({ t, dest: B.drums, type: 'highpass', f: 1400, peak: .45 * v, decay: .15 });
+      tone({ t, dest: B.drums, type: 'triangle', f: 230, f2: 150, peak: .28 * v, decay: .08 });
+    };
+    const clap = (B, t) => {
+      for (let i = 0; i < 3; i++) hiss({ t: t + i * .011, dest: B.drums, f: 1500, q: 1.1, peak: .32, decay: .03 });
+      hiss({ t: t + .033, dest: B.drums, f: 1300, q: .9, peak: .3, decay: .18 });
+    };
+    const hat = (B, t, open, v = 1) => hiss({ t, dest: B.drums, type: 'highpass', f: 7800, peak: (open ? .16 : .1) * v, decay: open ? .17 : .035 });
+    const crash = (B, t) => hiss({ t, dest: B.drums, type: 'highpass', f: 5200, peak: .2, decay: 1.4 });
+    function bass(B, t, n, len) {
+      const o = C.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = hz(n);
+      const f = C.createBiquadFilter();
+      f.type = 'lowpass';
+      f.Q.value = 6;
+      f.frequency.setValueAtTime(900, t);
+      f.frequency.exponentialRampToValueAtTime(160, t + len);
+      const g = C.createGain();
+      envelope(g, t, .004, .55, len);
+      o.connect(f); f.connect(g); g.connect(B.synth);
+      o.start(t); o.stop(t + len + .05);
+    }
+    function pluck(B, t, n, v, bright) {
+      const o = C.createOscillator();
+      o.type = 'square';
+      o.frequency.value = hz(n);
+      const f = C.createBiquadFilter();
+      f.type = 'lowpass';
+      f.Q.value = 4;
+      f.frequency.setValueAtTime(bright, t);
+      f.frequency.exponentialRampToValueAtTime(500, t + .14);
+      const g = C.createGain();
+      envelope(g, t, .002, v, .16);
+      o.connect(f); f.connect(g); g.connect(B.synth); g.connect(B.delay);
+      o.start(t); o.stop(t + .22);
+    }
+    function stab(B, t, chord) {
+      chord.forEach(n => [-8, 8].forEach(det => {
+        const o = C.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.value = hz(n + 12);
+        o.detune.value = det;
+        const f = C.createBiquadFilter();
+        f.type = 'lowpass';
+        f.frequency.setValueAtTime(3200, t);
+        f.frequency.exponentialRampToValueAtTime(700, t + .25);
+        const g = C.createGain();
+        envelope(g, t, .004, .06, .28);
+        o.connect(f); f.connect(g); g.connect(B.synth);
+        o.start(t); o.stop(t + .35);
+      }));
+    }
+    function play(B, s, t) {
+      const bar = Math.floor(s / 16), i = s % 16;
+      if (bar === 0) {                                   // count-in
+        if (i % 4 === 0) kick(B, t, .9);
+        if (i >= 8) snare(B, t, .25 + (i - 8) * .07);
+        if (i === 0) hiss({ t, dest: B.drums, f: 300, f2: 5000, q: 2, attack: STEP * 15, peak: .22, decay: .05 });
+        return;
+      }
+      const lb = (bar - 1) % 16;                         // bar inside the loop
+      const c = lb % 4, chord = CHORDS[c];
+      if (i === 0 && c === 0) crash(B, t);
+      if (i % 4 === 0) kick(B, t);
+      if (i === 14 && c === 3) kick(B, t, .7);
+      if (i === 4 || i === 12) clap(B, t);
+      if (i % 4 === 2) hat(B, t, true);
+      else hat(B, t, false, i % 2 ? .7 : 1);
+      if (i % 2 === 0) bass(B, t, ROOTS[c] + (i % 4 === 2 ? 12 : 0), STEP * 1.8);
+      if (lb >= 2) {
+        const up = [0, 1, 2, 1, 2, 0, 2, 1][i % 8];
+        pluck(B, t, chord[up] + (i % 8 >= 4 ? 12 : 0) + 12, .09, 1500 + (lb % 8) * 350);
+      }
+      if (lb >= 4 && (i === 0 || i === 3 || i === 6 || i === 10)) stab(B, t, chord);
+      if (lb >= 8 && i % 8 === 7) snare(B, t, .35);
+    }
+    // As a background soundtrack: the count-in bar is its intro, then the 16-bar loop
+    const chordAt = bar => CHORDS[Math.max(0, bar - 1) % 16 % 4];
+    return { bpm: BPM, makeBus, play, introBars: 1, bars: 17, chordAt };
+  })();
+
+
+  // ---------- "Tailwind": the Peaceful soundtrack. Solo piano, A major, 70 BPM ----------
+  // An original piece in a flowing, gentle style: rolling broken chords in the left hand under a singing melody.
+  // Form: a two-bar intro, then a 32-bar loop (A · A with harmony · B in the relative minor · A again).
+  const piano = (() => {
+    const BPM = 70, STEP = 60 / BPM / 4;
+    // Chord voicings for the left hand (bass first); the rolling pattern walks up and back down them
+    const CH = {
+      A: [45, 52, 57, 61, 64], E_Gs: [44, 52, 56, 59, 64], Fsm: [42, 49, 54, 57, 61], Csm_E: [40, 49, 52, 56, 61],
+      D: [38, 45, 50, 54, 57], A_Cs: [37, 45, 49, 52, 57], Bm7: [35, 42, 47, 50, 57], Esus: [40, 47, 52, 57, 59], E: [40, 47, 52, 56, 59],
+    };
+    const PROG_A = ['A', 'E_Gs', 'Fsm', 'Csm_E', 'D', 'A_Cs', 'Bm7', 'Esus'];
+    const PROG_B = ['Fsm', 'D', 'A', 'E', 'Fsm', 'D', 'Bm7', 'E'];
+    // Melodies: per bar, [eighth-note slot, MIDI note, length in eighths]
+    const MEL_A = [
+      [[2, 76, 2], [4, 73, 1], [5, 76, 1], [6, 81, 2]],
+      [[0, 80, 3], [3, 78, 1], [4, 76, 4]],
+      [[0, 81, 2], [2, 78, 1], [3, 81, 1], [4, 85, 3], [7, 83, 1]],
+      [[0, 80, 4], [4, 76, 2], [6, 78, 1], [7, 80, 1]],
+      [[0, 81, 3], [3, 78, 1], [4, 74, 2], [6, 76, 1], [7, 78, 1]],
+      [[0, 76, 2], [2, 73, 2], [4, 69, 2], [6, 73, 1], [7, 76, 1]],
+      [[0, 74, 2], [2, 78, 2], [4, 81, 2], [6, 83, 1], [7, 81, 1]],
+      [[0, 81, 2], [2, 80, 4]],
+    ];
+    const MEL_B = [
+      [[0, 85, 3], [3, 83, 1], [4, 81, 2], [6, 80, 1], [7, 81, 1]],
+      [[0, 78, 4], [4, 81, 2], [6, 86, 2]],
+      [[0, 85, 2], [2, 88, 2], [4, 85, 2], [6, 81, 2]],
+      [[0, 83, 6], [6, 80, 2]],
+      [[0, 81, 2], [2, 85, 2], [4, 88, 3], [7, 86, 1]],
+      [[0, 85, 2], [2, 83, 2], [4, 81, 3], [7, 78, 1]],
+      [[0, 83, 2], [2, 81, 2], [4, 78, 2], [6, 81, 2]],
+      [[0, 80, 8]],
+    ];
+    const WAVE_AMPS = [0, 1, .42, .24, .15, .09, .06, .035, .02, .012];
+    function makeBus(oc) {
+      const out = oc.createGain();
+      out.gain.value = .8;
+      out.connect(oc.destination);
+      const dry = oc.createGain();
+      dry.gain.value = .78;
+      dry.connect(out);
+      const verb = oc.createConvolver();
+      verb.buffer = impulse(oc.sampleRate, 3.2);
+      const wet = oc.createGain();
+      wet.gain.value = .34;
+      verb.connect(wet); wet.connect(out);
+      const real = new Float32Array(WAVE_AMPS.length), imag = Float32Array.from(WAVE_AMPS);
+      const wave = oc.createPeriodicWave(real, imag);
+      return { out, dry, verb, wave };
+    }
+    // One piano note: hammer strike, strings ringing and slowly losing their brightness, released by the damper
+    function key(B, t, n, v, len) {
+      t = Math.max(0, t + rnd(-.006, .006));          // a touch of human timing
+      const f = hz(n);
+      const T = clamp(4.2 - (n - 40) * .05, 1.3, 4.2);        // low strings ring longer
+      const pan = C.createStereoPanner();
+      pan.pan.value = clamp((n - 62) / 34, -.7, .7);
+      pan.connect(B.dry); pan.connect(B.verb);
+      const g = C.createGain();
+      g.connect(pan);
+      const lp = C.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.Q.value = .5;
+      lp.frequency.setValueAtTime(Math.min(14000, f * (5 + v * 22)), t);
+      lp.frequency.exponentialRampToValueAtTime(Math.max(f * 1.6, 380), t + T * .7);
+      lp.connect(g);
+      [0, 2.6].forEach((det, k) => {
+        const o = C.createOscillator();
+        o.setPeriodicWave(B.wave);
+        o.frequency.value = f;
+        o.detune.value = det + rnd(-.8, .8);
+        const og = C.createGain();
+        og.gain.value = k ? .45 : 1;
+        o.connect(og); og.connect(lp);
+        o.start(t);
+        o.stop(t + Math.min(len, T) + .5);
+      });
+      const hold = Math.min(len, T);
+      const at = v * .5;
+      g.gain.setValueAtTime(.0001, t);
+      g.gain.linearRampToValueAtTime(at, t + .004);
+      g.gain.exponentialRampToValueAtTime(at * .42, t + .2);
+      if (hold > .2) g.gain.exponentialRampToValueAtTime(Math.max(.0002, at * .42 * Math.pow(.07, (hold - .2) / Math.max(.2, T - .2))), t + hold);
+      g.gain.exponentialRampToValueAtTime(.0001, t + hold + .38);
+      // the felt hammer: a soft knock at the start
+      hiss({ t, dest: pan, f: Math.min(5000, f * 3), q: .9, peak: .018 * v, decay: .025 });
+    }
+    function play(B, s, t) {
+      const bar = Math.floor(s / 16), i = s % 16;
+      if (i % 2) return;                                   // everything sits on eighth notes
+      const slot = i / 2;
+      const BAR = STEP * 16, E8 = STEP * 2;
+      let chord, mel = null, lb = -1, part = 'intro';
+      if (bar < 2) chord = CH.A;
+      else {
+        lb = (bar - 2) % 32;
+        part = lb < 8 ? 'A' : lb < 16 ? 'A2' : lb < 24 ? 'B' : 'A3';
+        const k = lb % 8;
+        chord = CH[(part === 'B' ? PROG_B : PROG_A)[k]];
+        if (part === 'A' && k === 7 && slot >= 4) chord = CH.E;          // the sus resolves
+        mel = (part === 'B' ? MEL_B : MEL_A)[k];
+      }
+      // left hand: rolling broken chord, pedalled through the bar
+      const walk = [0, 1, 2, 3, 4, 3, 2, 1][slot];
+      const pedal = BAR - slot * E8 + .25;
+      const soft = part === 'intro' ? .75 : part === 'B' ? 1.05 : 1;
+      key(B, t, chord[walk], (slot === 0 ? .34 : .2 + (slot === 4 ? .04 : 0)) * soft, pedal);
+      if (slot === 0 && (part === 'A2' || part === 'B')) key(B, t + .012, chord[0] - 12, .22, BAR + .3);   // octave bass
+      // right hand: the melody, with a quiet harmony a third or sixth below in the second A
+      if (mel) for (const [at, n, len] of mel) {
+        if (at !== slot) continue;
+        const v = .42 + (len >= 3 ? .06 : 0) + (part === 'B' ? .04 : 0) - (part === 'A3' ? .05 : 0);
+        key(B, t, n, v, len * E8 + .12);
+        if (part === 'A2') {
+          const pcs = chord.map(c => c % 12);
+          for (let d = 3; d <= 9; d++) if (pcs.includes((n - d + 120) % 12)) { key(B, t + .01, n - d, v * .45, len * E8 + .1); break; }
+        }
+        if (part === 'A3' && len >= 2) key(B, t + .02, n + 12, v * .16, len * E8);   // a faint sparkle an octave up
+      }
+    }
+    return { bpm: BPM, makeBus, play, introBars: 2, bars: 34, tail: 5.2 };
+  })();
+
+  // =========================================================
+  // Players
   // =========================================================
   const statusEl = { set() {} };
+  let musicGain = 1;          // shared loudness correction for the rendered tracks
+
   const SONGS = {
-    dawn: { src: 'assets/audio/dawn.mp3', name: 'Dawn', kind: 'Sappheiros' },
-    embrace: { src: 'assets/audio/embrace.mp3', name: 'Embrace', kind: 'Sappheiros' },
-    awake: { src: 'assets/audio/awake.mp3', name: 'Awake', kind: 'Sappheiros' },
+    dogfight: { song: arcade, name: 'Dogfight', kind: 'Electronic' },
+    tailwind: { song: piano, name: 'Tailwind', kind: 'Piano' },
   };
-  const ORDER = Object.keys(SONGS);
-  // The experience mode picks where the playlist starts
-  const MODE_SONG = { peaceful: 'dawn', chaotic: 'awake' };
-  if (!SONGS[prefs.track]) prefs.track = MODE_SONG[window.Mode ? window.Mode.value : 'peaceful'] || 'dawn';
-  let onTrack = () => {};              // the menus repaint when the playlist moves on
+  if (!SONGS[prefs.track]) prefs.track = 'dogfight';
+  const barOf = S => 60 / S.bpm / 4 * (S.steps || 16);
 
   const bgm = (() => {
-    const LEVEL = .55;
-    const els = {};
-    let cur = null, want = false, held = false;
-    function element(id) {
-      if (els[id]) return els[id];
-      const a = new Audio();
-      a.preload = 'none';
-      a.src = SONGS[id].src;
-      const gain = ctx.createGain();
-      gain.gain.value = 0;
-      ctx.createMediaElementSource(a).connect(gain);
-      gain.connect(musicBus);
-      const e = { id, a, gain, timer: 0 };
-      a.addEventListener('ended', () => { if (cur === e) next(); });
-      a.addEventListener('waiting', () => { if (cur === e) statusEl.set(`Loading “${SONGS[id].name}”…`); });
-      a.addEventListener('playing', () => statusEl.set(''));
-      return (els[id] = e);
+    const LEVEL = .62;
+    const cache = {};
+    let cur = null, held = false, want = false;
+    const entry = id => cache[id] || (cache[id] = { intro: null, loop: null, norm: 1, rendering: null });
+    function render(id = prefs.track) {
+      const e = entry(id);
+      if (e.rendering) return e.rendering;
+      const S = SONGS[id].song, name = SONGS[id].name;
+      e.rendering = enqueue(async () => {
+        statusEl.set(`Tuning “${name}”…`);
+        e.intro = await renderSong(S, 0, S.introBars, false);
+        e.norm = .9 / Math.max(peakOf(e.intro), .1);
+        if (want && !held && prefs.track === id && !cur) begin(id);
+        e.loop = await renderSong(S, S.introBars, S.bars, true, p => statusEl.set(`Tuning “${name}”… ${Math.round(p * 100)}%`));
+        e.norm = Math.min(e.norm, .9 / Math.max(peakOf(e.loop), .1));
+        if (cur && cur.id === id) { cur.norm.gain.value = e.norm; queueLoop(); }
+        statusEl.set('');
+      });
+      return e.rendering;
     }
-    function fadeTo(e, v, dur) {
-      const t = ctx.currentTime, g = e.gain.gain;
-      g.cancelScheduledValues(t);
-      g.setValueAtTime(g.value, t);
-      g.linearRampToValueAtTime(v, t + dur);
+    function queueLoop() {
+      const e = entry(cur.id);
+      if (!e.loop || cur.looped) return;
+      const at = Math.max(cur.loopAt, ctx.currentTime + .03);
+      const s = ctx.createBufferSource();
+      s.buffer = e.loop;
+      s.loop = true;
+      s.connect(cur.norm);
+      s.start(at);
+      cur.srcs.push(s);
+      cur.looped = true;
+      cur.loopAt = at;
     }
     function begin(id) {
-      const e = element(id);
-      cur = e;
-      clearTimeout(e.timer);
-      if (e.a.ended) e.a.currentTime = 0;
-      const p = e.a.play();
-      if (p) p.catch(() => {});
-      fadeTo(e, LEVEL, 1.6);
-    }
-    function release(e, fade) {
-      fadeTo(e, 0, fade);
-      clearTimeout(e.timer);
-      e.timer = setTimeout(() => { if (cur !== e) e.a.pause(); }, fade * 1000 + 80);
+      const e = entry(id);
+      if (cur || !e.intro || !liveMusic()) return;
+      const S = SONGS[id].song, BAR = barOf(S);
+      const t = ctx.currentTime + .08;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(LEVEL, t + 1.2);
+      gain.connect(musicBus);
+      const norm = ctx.createGain();
+      norm.gain.value = e.norm;
+      norm.connect(gain);
+      const s = ctx.createBufferSource();
+      s.buffer = e.intro;
+      s.connect(norm);
+      s.start(t);
+      cur = { id, S, gain, norm, srcs: [s], t0: t, loopAt: t + S.introBars * BAR, loopDur: (S.bars - S.introBars) * BAR, looped: false };
+      queueLoop();
     }
     function start() {
       want = true;
-      if (held || !liveMusic() || cur) return;
+      if (held || !liveMusic()) return;
+      const e = entry(prefs.track);
+      if (!e.intro) { render(prefs.track); return; }
       begin(prefs.track);
     }
     function stop(fade = .8) {
       want = false;
-      if (!cur) return;
-      const e = cur;
+      if (!cur || !ctx) return;
+      const old = cur;
       cur = null;
-      release(e, fade);
+      const t = ctx.currentTime;
+      old.gain.gain.cancelScheduledValues(t);
+      old.gain.gain.setValueAtTime(old.gain.gain.value, t);
+      old.gain.gain.linearRampToValueAtTime(0, t + fade);
+      old.srcs.forEach(s => { try { s.stop(t + fade + .05); } catch (e) { /* not started */ } });
+      setTimeout(() => old.gain.disconnect(), fade * 1000 + 300);
     }
-    // Change the song: the old one fades out while the new one fades in
+    // Where the song is at time `at`: its current bar, and when (and which) the next 16th falls
+    function clock(at) {
+      if (!cur) return null;
+      const S = cur.S, STEP = 60 / S.bpm / 4, SPB = S.steps || 16;
+      let rel, base = 0;
+      if (!cur.looped || at < cur.loopAt) {
+        rel = at - cur.t0;
+        if (rel < 0) return null;
+      } else {
+        rel = (at - cur.loopAt) % cur.loopDur;
+        base = S.introBars * SPB;
+      }
+      const k = Math.ceil(rel / STEP - 1e-6);
+      const slotTime = at + (k * STEP - rel);
+      return { S, slotTime, slot: Math.round(slotTime / STEP), bar: Math.floor((base + k) / SPB) };
+    }
+    // Change the soundtrack: the old one fades out while the new one fades in
     function switchTo(id) {
-      if (!SONGS[id] || (id === prefs.track && cur)) return;
+      if (!SONGS[id]) return;
+      if (id === prefs.track && cur) return;
       prefs.track = id;
-      if (cur) { const e = cur; cur = null; release(e, 1.1); }
+      if (cur) stop(1.1);
       if (prefs.music) start();
     }
-    // A song finished: carry on with the next one
-    function next() {
-      const id = ORDER[(ORDER.indexOf(cur.id) + 1) % ORDER.length];
-      const e = cur;
-      cur = null;
-      e.gain.gain.value = 0;
-      prefs.track = id;
-      onTrack();
-      if (want && !held && liveMusic()) begin(id);
-    }
     return {
-      start, stop, switchTo,
+      start, stop, render, clock, switchTo,
       hold(on) {
         held = on;
         if (on) { const w = want; stop(.4); want = w; }
-        else setTimeout(() => { if (!held && want) start(); }, 600);
-      },
-      // the tab was hidden or shown again: don't let the song run on silently
-      pause(on) {
-        if (!cur) return;
-        if (on) cur.a.pause();
-        else { const p = cur.a.play(); if (p) p.catch(() => {}); }
+        else setTimeout(() => { if (!held && want) start(); }, 1600);
       },
       get playing() { return !!cur; },
-      get ready() { return true; },
+      get ready() { return !!entry(prefs.track).loop; },
       get track() { return prefs.track; },
-      get el() { return cur && cur.a; },          // for development: the element playing right now
     };
   })();
   Sfx.bgm = bgm;
-  // The mini-game used to have its own track; the playlist now simply carries on through a round
-  const music = { start() {}, stop() {}, get playing() { return false; }, get ready() { return true; } };
+
+  const music = (() => {
+    const BAR = 60 / arcade.bpm * 4;
+    let buf = null, rendering = null, out = null, pending = false;
+    function render() {
+      if (rendering) return rendering;
+      rendering = enqueue(async () => {
+        buf = await renderSong(arcade, 0, 17, false);
+        const norm = .85 / Math.max(peakOf(buf), .1);
+        const d0 = buf.getChannelData(0), d1 = buf.getChannelData(1);
+        for (let i = 0; i < d0.length; i++) { d0[i] *= norm; d1[i] *= norm; }
+        if (pending) begin();
+      });
+      return rendering;
+    }
+    function begin() {
+      pending = false;
+      if (!buf || !liveMusic()) return;
+      const gain = ctx.createGain();
+      gain.gain.value = .75;
+      gain.connect(musicBus);
+      const s = ctx.createBufferSource();
+      s.buffer = buf;
+      s.loop = true;
+      s.loopStart = BAR;
+      s.loopEnd = BAR * 17;
+      s.connect(gain);
+      s.start(ctx.currentTime + .03);
+      out = { gain, s };
+    }
+    return {
+      render,
+      start() {
+        this.stop(true);
+        bgm.hold(true);
+        if (!liveMusic()) return;
+        if (buf) begin();
+        else { pending = true; render(); }
+      },
+      stop(now) {
+        pending = false;
+        if (!now) bgm.hold(false);
+        if (!out || !ctx) return;
+        const old = out;
+        out = null;
+        const t = ctx.currentTime;
+        old.gain.gain.cancelScheduledValues(t);
+        old.gain.gain.setValueAtTime(old.gain.gain.value, t);
+        old.gain.gain.linearRampToValueAtTime(0, t + (now ? .05 : .45));
+        try { old.s.stop(t + .5); } catch (e) { /* already stopped */ }
+        setTimeout(() => old.gain.disconnect(), 800);
+      },
+      get playing() { return !!out; },
+      get ready() { return !!buf; },
+    };
+  })();
   Sfx.music = music;
   window.Sfx = Sfx;
   // Inspection hook for development only: open the page with ?debug
-  if (/[?&]debug\b/.test(location.search)) Sfx.__debug = { get ctx() { return ctx; }, get master() { return master; }, get output() { return output; }, get limiter() { return limiterNode; }, get voices() { return voices.length; }, songs: SONGS };
+  if (/[?&]debug\b/.test(location.search)) Sfx.__debug = { get ctx() { return ctx; }, get master() { return master; }, get output() { return output; }, get limiter() { return limiterNode; }, get voices() { return voices.length; }, songs: SONGS, renderSong, peakOf };
 
   // ---------- Sound menu + unlock ----------
   const menu = document.createElement('div');
@@ -632,7 +1005,6 @@
   };
   paintMenu();
   paintButton();
-  onTrack = paintMenu;
 
   function setPref(key, on) {
     prefs[key] = on;
@@ -730,20 +1102,24 @@
     if (prepared) return;
     prepared = true;
     renderBank();
+    if (prefs.music) bgm.render(prefs.track);
+    Object.keys(SONGS).forEach(id => { if (id !== prefs.track) bgm.render(id); });
+    music.render();
   }
-  // The experience mode picks the song: Dawn when peaceful, Awake when chaotic. Music that is switched off stays off.
+  // The experience mode picks the soundtrack: Tailwind (piano) when peaceful, Dogfight when chaotic.
+  // Music that is switched off stays off.
   const modeBtns = [...menu.querySelectorAll('[data-mode]')];
   const paintMode = () => { const m = window.Mode ? window.Mode.value : 'chaotic'; modeBtns.forEach(b => b.setAttribute('aria-checked', String(b.dataset.mode === m))); };
   modeBtns.forEach(b => b.addEventListener('click', () => { if (window.Mode) window.Mode.set(b.dataset.mode); }));
   addEventListener('modechange', e => {
     paintMode();
-    const id = MODE_SONG[e.detail.mode] || 'dawn';
+    const id = e.detail.mode === 'peaceful' ? 'tailwind' : 'dogfight';
     if (prefs.track !== id) {
       if (ctx && prefs.music) bgm.switchTo(id);
       else prefs.track = id;
       try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch (err) { /* storage blocked */ }
       paintMenu();
-    } else if (ctx && prefs.music) bgm.start();
+    }
   });
   paintMode();
 
@@ -751,8 +1127,7 @@
     if (!ctx) setup();
     const go = () => {
       prepare();
-      // on the intro menu the music waits for the choice, which picks the song it starts on
-      if (prefs.music && !document.querySelector('.loader.is-asking:not(.is-chosen)')) bgm.start();
+      if (prefs.music) bgm.start();
     };
     if (ctx.state !== 'running') ctx.resume().then(go);
     else go();
@@ -760,7 +1135,6 @@
   ['pointerdown', 'keydown', 'touchend'].forEach(type => addEventListener(type, () => { if (anyOn()) unlock(); }, { capture: true, passive: true }));
   document.addEventListener('visibilitychange', () => {
     if (!ctx) return;
-    bgm.pause(document.hidden);
     if (document.hidden) ctx.suspend();
     else if (anyOn()) ctx.resume();
   });
