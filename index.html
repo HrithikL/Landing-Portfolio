@@ -125,6 +125,10 @@
         <span class="sound-toggle__bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
         <span class="sound-toggle__label">Sound</span>
       </button>
+      <button class="experience-toggle" type="button" data-experience-toggle data-mode="chaotic" aria-pressed="false" aria-label="Experience: Chaotic. Switch to Peaceful">
+        <svg class="experience-toggle__icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        <span class="experience-toggle__label">Chaotic</span>
+      </button>
       <button class="track-toggle" type="button" aria-label="Change soundtrack" title="Change soundtrack">
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M9 17.5V5.2l10-2v11.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="6.5" cy="17.5" r="2.6" fill="currentColor"/><circle cx="16.5" cy="15" r="2.6" fill="currentColor"/></svg>
         <span class="track-toggle__label">Dawn</span>
@@ -213,7 +217,6 @@
               <span>About me</span>
               <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </a>
-            <a class="btn btn--ghost magnetic" href="#news" data-goto="news"><span>Read cool news</span></a>
           </div>
         </div>
       </div>
@@ -293,27 +296,27 @@
           <div class="tiles">
             <button class="tile tilt" type="button" data-sheet="background">
               <span class="tile__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20V9l8-5 8 5v11M9 20v-6h6v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <b>Background</b><small>Education and work, in order</small>
+              <span class="tile__text"><b>Background</b><small>Education and work, in order</small></span>
             </button>
             <button class="tile tilt" type="button" data-sheet="projects">
               <span class="tile__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16v12H4zM9 7V5h6v2M4 12h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span>
-              <b>My projects</b><small>What I’ve built and with what</small>
+              <span class="tile__text"><b>My projects</b><small>What I’ve built and with what</small></span>
             </button>
             <button class="tile tilt" type="button" data-sheet="hobbies">
               <span class="tile__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 9h10a4 4 0 0 1 3.9 4.9l-.6 2.6a2 2 0 0 1-3.5.8L15 15H9l-1.8 2.3a2 2 0 0 1-3.5-.8l-.6-2.6A4 4 0 0 1 7 9zM8 11v3M6.5 12.5h3M15.5 12h.01M17.5 13.5h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <b>Hobbies &amp; interests</b><small>Off the clock</small>
+              <span class="tile__text"><b>Hobbies &amp; interests</b><small>Off the clock</small></span>
             </button>
             <button class="tile tilt" type="button" data-sheet="tools">
               <span class="tile__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14.5 5.5a4 4 0 0 0-5 5L4 16l4 4 5.5-5.5a4 4 0 0 0 5-5L16 12l-4-4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span>
-              <b>Tools I use</b><small>The kit behind my projects</small>
+              <span class="tile__text"><b>Tools I use</b><small>The kit behind my projects</small></span>
             </button>
             <button class="tile tilt" type="button" data-sheet="site">
               <span class="tile__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 5h18v14H3zM3 9h18M6.5 7h.01M9 7h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <b>About this website</b><small>How it’s built, what it cost</small>
+              <span class="tile__text"><b>About this website</b><small>How it’s built, what it cost</small></span>
             </button>
             <button class="tile tilt" type="button" data-sheet="gallery">
               <span class="tile__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h16v13H4zM4 16l5-5 4 4 3-3 4 4M15 9.5h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <b>Gallery</b><small>Photos, coming soon</small>
+              <span class="tile__text"><b>Gallery</b><small>Photos, coming soon</small></span>
             </button>
           </div>
         </div>
@@ -326,49 +329,78 @@
         <div class="panel__content panel__content--wide">
           <header class="sec-head"><span class="sec-num">04</span><span class="sec-rule"></span><span class="sec-label">Credits</span></header>
           <h2 class="sec-title">With thanks to the <em>artists</em>.</h2>
-          <div class="credits">
-            <section class="card credit-group credit-group--audio" aria-labelledby="credits-audio">
-              <h3 id="credits-audio"><span class="credit-group__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 17.5V5.2l10-2v11.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="6.5" cy="17.5" r="2.6" fill="currentColor"/><circle cx="16.5" cy="15" r="2.6" fill="currentColor"/></svg></span>Audio</h3>
-              <ul class="credit-list">
-                <li class="credit">
-                  <b class="credit__song">Dawn</b>
-                  <dl class="credit__meta">
-                    <div><dt>Composer</dt><dd>Sappheiros</dd></div>
-                    <div><dt>Website</dt><dd><a href="https://open.spotify.com/artist/5ZVHXQZAIn9WJXvy6qn9K0" target="_blank" rel="noopener">open.spotify.com/artist/5ZVHXQZAIn9WJXvy6qn9K0</a></dd></div>
-                    <div><dt>License</dt><dd>Creative Commons (BY 3.0) <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">creativecommons.org/licenses/by/3.0</a></dd></div>
-                    <div><dt>Music powered by</dt><dd>BreakingCopyright: <a href="https://breakingcopyright.com" target="_blank" rel="noopener">breakingcopyright.com</a></dd></div>
-                  </dl>
-                </li>
-                <li class="credit">
-                  <b class="credit__song">Embrace</b>
-                  <dl class="credit__meta">
-                    <div><dt>Composer</dt><dd>Sappheiros</dd></div>
-                    <div><dt>Website</dt><dd><a href="https://open.spotify.com/artist/5ZVHXQZAIn9WJXvy6qn9K0" target="_blank" rel="noopener">open.spotify.com/artist/5ZVHXQZAIn9WJXvy6qn9K0</a></dd></div>
-                    <div><dt>License</dt><dd>Creative Commons (BY 3.0) <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">creativecommons.org/licenses/by/3.0</a></dd></div>
-                    <div><dt>Music powered by</dt><dd>BreakingCopyright: <a href="https://breakingcopyright.com" target="_blank" rel="noopener">breakingcopyright.com</a></dd></div>
-                  </dl>
-                </li>
-                <li class="credit">
-                  <b class="credit__song">Awake</b>
-                  <dl class="credit__meta">
-                    <div><dt>Composer</dt><dd>Sappheiros</dd></div>
-                    <div><dt>Website</dt><dd><a href="https://open.spotify.com/artist/5ZVHXQZAIn9WJXvy6qn9K0" target="_blank" rel="noopener">open.spotify.com/artist/5ZVHXQZAIn9WJXvy6qn9K0</a></dd></div>
-                    <div><dt>License</dt><dd>Creative Commons (BY 3.0) <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">creativecommons.org/licenses/by/3.0</a></dd></div>
-                    <div><dt>Music powered by</dt><dd>BreakingCopyright: <a href="https://breakingcopyright.com" target="_blank" rel="noopener">breakingcopyright.com</a></dd></div>
-                  </dl>
-                </li>
-              </ul>
-            </section>
-            <section class="card credit-group" aria-labelledby="credits-code">
-              <h3 id="credits-code"><span class="credit-group__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Code, type &amp; tools</h3>
-              <ul class="credit-rows">
-                <li><b>Three.js</b><span>The 3D engine behind the plane · MIT License</span><a href="https://threejs.org" target="_blank" rel="noopener">threejs.org ↗</a></li>
-                <li><b>Lenis</b><span>Smooth scrolling by darkroom.engineering · MIT License</span><a href="https://lenis.darkroom.engineering" target="_blank" rel="noopener">lenis ↗</a></li>
-                <li><b>Outfit, Yellowtail &amp; Sacramento</b><span>Typefaces via Google Fonts · SIL Open Font License</span><a href="https://fonts.google.com" target="_blank" rel="noopener">fonts.google.com ↗</a></li>
-                <li><b>Solar Pop Studio</b><span>The design system the site is dressed in</span></li>
-                <li><b>Claude Code</b><span>AI pair programmer, by Anthropic</span><a href="https://www.anthropic.com/claude-code" target="_blank" rel="noopener">anthropic.com ↗</a></li>
-              </ul>
-            </section>
+          <div class="credits credits--accordion">
+            <details class="card credit-acc credit-acc--audio">
+              <summary class="credit-acc__summary">
+                <span class="credit-group__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 17.5V5.2l10-2v11.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="6.5" cy="17.5" r="2.6" fill="currentColor"/><circle cx="16.5" cy="15" r="2.6" fill="currentColor"/></svg></span>
+                <h3 class="credit-acc__title" id="credits-audio">Audio</h3>
+                <svg class="credit-acc__chevron" aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </summary>
+              <div class="credit-acc__body">
+                <ul class="credit-list">
+                  <li class="credit">
+                    <details class="credit__track">
+                      <summary class="credit__track-summary"><b class="credit__song">Dawn</b><svg class="credit-acc__chevron" aria-hidden="true" viewBox="0 0 24 24" width="14" height="14"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
+                      <dl class="credit__meta">
+                        <div><dt>Composer</dt><dd>Sappheiros</dd></div>
+                        <div><dt>Website</dt><dd><a href="https://open.spotify.com/artist/5ZVHXQZAIn9WJXvy6qn9K0" target="_blank" rel="noopener">open.spotify.com/artist/5ZVHXQZAIn9WJXvy6qn9K0</a></dd></div>
+                        <div><dt>License</dt><dd>Creative Commons (BY 3.0) <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">creativecommons.org/licenses/by/3.0</a></dd></div>
+                        <div><dt>Music powered by</dt><dd>BreakingCopyright: <a href="https://breakingcopyright.com" target="_blank" rel="noopener">breakingcopyright.com</a></dd></div>
+                      </dl>
+                    </details>
+                  </li>
+                  <li class="credit">
+                    <details class="credit__track">
+                      <summary class="credit__track-summary"><b class="credit__song">Embrace</b><svg class="credit-acc__chevron" aria-hidden="true" viewBox="0 0 24 24" width="14" height="14"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
+                      <dl class="credit__meta">
+                        <div><dt>Composer</dt><dd>Sappheiros</dd></div>
+                        <div><dt>Website</dt><dd><a href="https://open.spotify.com/artist/5ZVHXQZAIn9WJXvy6qn9K0" target="_blank" rel="noopener">open.spotify.com/artist/5ZVHXQZAIn9WJXvy6qn9K0</a></dd></div>
+                        <div><dt>License</dt><dd>Creative Commons (BY 3.0) <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">creativecommons.org/licenses/by/3.0</a></dd></div>
+                        <div><dt>Music powered by</dt><dd>BreakingCopyright: <a href="https://breakingcopyright.com" target="_blank" rel="noopener">breakingcopyright.com</a></dd></div>
+                      </dl>
+                    </details>
+                  </li>
+                  <li class="credit">
+                    <details class="credit__track">
+                      <summary class="credit__track-summary"><b class="credit__song">Awake</b><svg class="credit-acc__chevron" aria-hidden="true" viewBox="0 0 24 24" width="14" height="14"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
+                      <dl class="credit__meta">
+                        <div><dt>Composer</dt><dd>Sappheiros</dd></div>
+                        <div><dt>Website</dt><dd><a href="https://open.spotify.com/artist/5ZVHXQZAIn9WJXvy6qn9K0" target="_blank" rel="noopener">open.spotify.com/artist/5ZVHXQZAIn9WJXvy6qn9K0</a></dd></div>
+                        <div><dt>License</dt><dd>Creative Commons (BY 3.0) <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">creativecommons.org/licenses/by/3.0</a></dd></div>
+                        <div><dt>Music powered by</dt><dd>BreakingCopyright: <a href="https://breakingcopyright.com" target="_blank" rel="noopener">breakingcopyright.com</a></dd></div>
+                      </dl>
+                    </details>
+                  </li>
+                </ul>
+              </div>
+            </details>
+            <details class="card credit-acc credit-acc--tools">
+              <summary class="credit-acc__summary">
+                <span class="credit-group__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14.5 5.5a4 4 0 0 0-5 5L4 16l4 4 5.5-5.5a4 4 0 0 0 5-5L16 12l-4-4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span>
+                <h3 class="credit-acc__title" id="credits-tools">Tools</h3>
+                <svg class="credit-acc__chevron" aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </summary>
+              <div class="credit-acc__body">
+                <ul class="credit-rows">
+                  <li><b>Three.js</b><span>The 3D engine behind the plane · MIT License</span><a href="https://threejs.org" target="_blank" rel="noopener">threejs.org ↗</a></li>
+                  <li><b>Lenis</b><span>Smooth scrolling by darkroom.engineering · MIT License</span><a href="https://lenis.darkroom.engineering" target="_blank" rel="noopener">lenis ↗</a></li>
+                  <li><b>Solar Pop Studio</b><span>The design system the site is dressed in</span></li>
+                  <li><b>Claude Code</b><span>AI pair programmer, by Anthropic</span><a href="https://www.anthropic.com/claude-code" target="_blank" rel="noopener">anthropic.com ↗</a></li>
+                </ul>
+              </div>
+            </details>
+            <details class="card credit-acc credit-acc--code">
+              <summary class="credit-acc__summary">
+                <span class="credit-group__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                <h3 class="credit-acc__title" id="credits-code">Code &amp; type</h3>
+                <svg class="credit-acc__chevron" aria-hidden="true" viewBox="0 0 24 24" width="16" height="16"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </summary>
+              <div class="credit-acc__body">
+                <ul class="credit-rows">
+                  <li><b>Outfit, Yellowtail &amp; Sacramento</b><span>Typefaces via Google Fonts · SIL Open Font License</span><a href="https://fonts.google.com" target="_blank" rel="noopener">fonts.google.com ↗</a></li>
+                </ul>
+              </div>
+            </details>
           </div>
           <footer class="footer">
             <span>© <span id="year">2026</span> Hrithik Lega · Peaceful Pursuit. Designed &amp; built in Melbourne.</span>

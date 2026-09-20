@@ -4,9 +4,11 @@
    pink and amber fields around a bright cream core, with the corners burnt in a little. The fields drift
    on slow orbits; the cursor pulls them around and shifts their colours, a warm glow follows it, and the
    plane drags the fields along in its wake.
-   Night: a candy aurora over a near-black plum sky. Curtains of candy orange and pink light hang across
-   the top of the screen with rays reaching up and a bright, hot lower edge; they ripple and brighten
-   where the cursor is and flare and bend where the plane flies through.
+   Night: a candy aurora over a near-black plum sky. Curtains of candy orange and pink light fan out and
+   down from a distant point high above the screen, splaying toward the lower-left and lower-right with
+   vertical light-shafts hanging beneath their outer edges and a bright, hot lower edge; the whole sky is
+   still at rest and only drifts, very slowly, in response to the cursor, and flares and bends where the
+   plane flies through.
    ========================================================= */
 (() => {
   const canvas = document.querySelector('.bg__mesh');
@@ -42,12 +44,15 @@
   // ---------- Night: the aurora ----------
   // Sky from top to bottom: near-black ink into a very dark plum near the horizon
   const SKY = [[0, hex('#010108')], [.45, hex('#05030c')], [1, hex('#100611')]];
-  // Curtains: where their lower edge hangs (fraction of the height), how far the rays reach up, how they wave,
-  // and the colours they run through along their length
+  // Curtains: each fans out from a distant origin (ox, y — high up, near the vanishing point) and droops
+  // further down the further a column sits from that origin ("spread"), so the ribbon arcs outward and
+  // downward toward the left and right edges instead of running as a flat horizontal band. "ray" is how
+  // far the light-shafts reach up at the origin itself; "rayGrow" lengthens them as they splay outward,
+  // since the shafts hang most visibly beneath the curtain's far, drooping edges.
   const CURTAINS = [
-    { y: .2, ray: .2, amp: .045, f1: 2.1, f2: 5.3, s1: .09, s2: .05, bright: .9, cols: ['#ff7a2f', '#ff4f9a', '#ffa43d'] },
-    { y: .33, ray: .3, amp: .06, f1: 1.5, f2: 4.1, s1: -.07, s2: .06, bright: 1, cols: ['#ff5fa2', '#ff8a3d', '#ff3d7f'] },
-    { y: .46, ray: .34, amp: .05, f1: 1.2, f2: 3.3, s1: .05, s2: -.04, bright: .75, cols: ['#ff9f45', '#ff6fb5', '#ff6d34'] },
+    { ox: .58, y: -.04, spread: 1.15, ray: .16, rayGrow: .5, amp: .045, f1: 2.1, f2: 5.3, s1: .09, s2: .05, bright: .9, cols: ['#ff7a2f', '#ff4f9a', '#ffa43d'] },
+    { ox: .44, y: -.07, spread: 1.35, ray: .22, rayGrow: .62, amp: .06, f1: 1.5, f2: 4.1, s1: -.07, s2: .06, bright: 1, cols: ['#ff5fa2', '#ff8a3d', '#ff3d7f'] },
+    { ox: .52, y: -.01, spread: .95, ray: .26, rayGrow: .42, amp: .05, f1: 1.2, f2: 3.3, s1: .05, s2: -.04, bright: .75, cols: ['#ff9f45', '#ff6fb5', '#ff6d34'] },
   ];
   CURTAINS.forEach((c, i) => { c.ph = i * 2.3 + Math.random() * 3; c.cols = c.cols.map(hex); });
   // One vertical ray, pre-drawn per colour: light concentrated at the curtain's lower edge, rays fading upwards.
@@ -115,6 +120,9 @@
   }
 
   let last = performance.now(), t = Math.random() * 100;
+  // The aurora's own clock: unlike `t`, it only creeps forward while the pointer is stirring the sky
+  // (see `ptr.stir` below), so the curtains sit still at rest and drift very slowly under the cursor.
+  let auroraT = Math.random() * 100;
   function frame(now) {
     requestAnimationFrame(frame);
     const dt = clamp((now - last) / 1000, 1e-3, .05);
@@ -193,27 +201,31 @@
     ctx.globalCompositeOperation = 'lighter';
     const pX = plane.ok ? plane.sx / W : -9, pY = plane.ok ? plane.sy / H : -9;
     const mX = ptr.seen ? ptr.sx / W : -9, mY = ptr.seen ? ptr.sy / H : -9;
-    const breathe = .82 + .18 * Math.sin(t * .23);
+    const breathe = .82 + .18 * Math.sin(auroraT * .23);
     for (const c of CURTAINS) {
-      const top = c.ray * ch;
       for (let x = 0; x < cw; x++) {
         const X = x / cw;
+        // the curtain's baseline: it hangs near its distant origin (ox, y) and arcs outward and downward
+        // the further a column sits from that origin, fanning toward the lower-left and lower-right
+        const spreadX = Math.abs(X - c.ox);
+        const arch = c.y + Math.pow(spreadX, 1.4) * c.spread;
+        const top = (c.ray + spreadX * c.rayGrow) * ch;      // light-shafts lengthen toward the outer edges
         // the cursor makes the nearest part of the curtain ripple and glow; the plane bends and flares it
-        const nearM = Math.exp(-((X - mX) ** 2) / .012) * Math.exp(-((c.y - mY) ** 2) / .08) * ptr.stir;
-        const nearP = Math.exp(-((X - pX) ** 2) / .006) * Math.exp(-((c.y - pY) ** 2) / .05) * plane.stir;
-        const yN = c.y
-          + c.amp * Math.sin(X * c.f1 * Math.PI + t * c.s1 * 6 + c.ph)
-          + c.amp * .45 * Math.sin(X * c.f2 * Math.PI - t * c.s2 * 9 + c.ph * 1.7)
-          + nearM * .05 * Math.sin(t * 5 + X * 30)
+        const nearM = Math.exp(-((X - mX) ** 2) / .012) * Math.exp(-((arch - mY) ** 2) / .08) * ptr.stir;
+        const nearP = Math.exp(-((X - pX) ** 2) / .006) * Math.exp(-((arch - pY) ** 2) / .05) * plane.stir;
+        const yN = arch
+          + c.amp * Math.sin(X * c.f1 * Math.PI + auroraT * c.s1 * 6 + c.ph)
+          + c.amp * .45 * Math.sin(X * c.f2 * Math.PI - auroraT * c.s2 * 9 + c.ph * 1.7)
+          + nearM * .05 * Math.sin(auroraT * 5 + X * 30)
           - nearP * .07;
         // rays: bright and dim streaks that slowly drift along the curtain
-        let I = (.5 + .5 * Math.sin(X * 41 + t * .9 + c.ph)) * (.55 + .45 * Math.sin(X * 13 - t * .5 + c.ph * 2));
+        let I = (.5 + .5 * Math.sin(X * 41 + auroraT * .9 + c.ph)) * (.55 + .45 * Math.sin(X * 13 - auroraT * .5 + c.ph * 2));
         I = (.25 + .75 * I) * c.bright * breathe;
         I *= Math.min(1, X * 6, (1 - X) * 6) * .65 + .35;          // a touch softer at the screen edges
         I += nearM * .55 + nearP * .9;
         if (I < .02) continue;
         // colour along the curtain, nudged by where the cursor is
-        const u = .5 + .5 * Math.sin(X * 2.6 + t * .11 + c.ph + (mx - .5) * 2.2);
+        const u = .5 + .5 * Math.sin(X * 2.6 + auroraT * .11 + c.ph + (mx - .5) * 2.2);
         const i0 = u < .5 ? 0 : 1, w = u < .5 ? u * 2 : (u - .5) * 2;
         const yPx = yN * ch, h = top + ch * .06;
         ctx.globalAlpha = a * clamp(I, 0, 1.4) * (1 - w) * .62;
@@ -248,6 +260,8 @@
     const mx = clamp(ptr.sx / W, 0, 1), my = clamp(ptr.sy / H, 0, 1);
     // how stirred-up the sky is near the cursor: rises as it moves, settles when it stops
     ptr.stir += (Math.min(1, Math.hypot(mdx, mdy) / 18) - ptr.stir) * Math.min(1, dt * (Math.hypot(mdx, mdy) > 1 ? 6 : 1.2));
+    // the aurora's clock only ticks while the cursor is stirring it, and only a little — it sits still at rest
+    if (!reduced) auroraT += dt * ptr.stir * .18;
 
     // plane: where it is on screen, how hard it is flying, and how far it moved
     const ps = window.Flight && window.Flight.planeScreen;
