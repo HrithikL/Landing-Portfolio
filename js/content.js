@@ -120,7 +120,7 @@
   let votes = {};
   try { votes = JSON.parse(localStorage.getItem(VOTES_KEY)) || {}; } catch (e) { votes = {}; }
   const saveVotes = () => { try { localStorage.setItem(VOTES_KEY, JSON.stringify(votes)); } catch (e) { /* storage blocked */ } };
-  const news = { items: [], cat: 'ai', ready: false };
+  const news = { items: [], cat: 'models', ready: false };
   const grid = $('[data-news-grid]'), readerGrid = $('[data-reader-grid]'), status = $('[data-news-status]');
   const fmtDate = iso => {
     const d = new Date(`${iso}T12:00:00`);
@@ -128,40 +128,24 @@
   };
 
   // ---------- Placeholder art ----------
-  // Until the pipeline generates a real image for a story (item.image), each card gets its own artwork, drawn
-  // from the story's id: soft candy light over a gradient, and a motif for its topic (a network for AI, a
-  // striped sun and petals for anime, a pixel sprite for gaming).
+  // Until the pipeline generates a real image for a story (item.image), each card gets its own
+  // artwork, drawn from the story's id: soft candy light over a gradient, with a network motif
+  // (every topic here is AI/dev-tooling, so one consistent motif reads better than a forced
+  // per-category icon set).
   const hash = s => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
   const rng = seed => () => ((seed = Math.imul(seed ^ (seed >>> 15), 2246822507) ^ Math.imul(seed ^ (seed >>> 13), 3266489909), (seed ^= seed >>> 16) >>> 0) / 4294967296);
-  const PAL = {
-    ai: [['#ff7a2f', '#ff4f9a'], ['#ff9f45', '#ef4a76'], ['#ff6d34', '#b28dff'], ['#ffb347', '#ff5f8a']],
-    anime: [['#ff8fc8', '#ff7a2f'], ['#ff6fb5', '#ffb347'], ['#ef4a76', '#ffd23f'], ['#ff839b', '#ff6d34']],
-    gaming: [['#3b1d4a', '#ff4f9a'], ['#2b1a3d', '#ff7a2f'], ['#1f2a44', '#ff6d34'], ['#40163a', '#ffb347']],
-  };
+  const PAL = [['#ff7a2f', '#ff4f9a'], ['#ff9f45', '#ef4a76'], ['#ff6d34', '#b28dff'], ['#ffb347', '#ff5f8a']];
   const artCache = new Map();
   function art(item) {
     if (artCache.has(item.id)) return artCache.get(item.id);
     const r = rng(hash(item.id)), W = 400, H = 300;
-    const pal = (PAL[item.category] || PAL.ai)[Math.floor(r() * 4)];
+    const pal = PAL[Math.floor(r() * PAL.length)];
     const blobs = Array.from({ length: 4 }, (_, k) => `<circle cx="${(r() * W).toFixed(0)}" cy="${(r() * H).toFixed(0)}" r="${(60 + r() * 90).toFixed(0)}" fill="${['#fff2d7', '#ffd2da', pal[0], '#ffe4d9'][k]}" opacity="${(.35 + r() * .4).toFixed(2)}"/>`).join('');
-    let motif = '';
-    if (item.category === 'anime') {
-      const cx = 120 + r() * 160, cy = 110 + r() * 50;
-      motif = `<g><circle cx="${cx}" cy="${cy}" r="78" fill="#fff6ea" opacity=".92"/>${[0, 1, 2, 3].map(k => `<rect x="${cx - 90}" y="${cy + 16 + k * 16}" width="180" height="${5 + k * 2}" fill="${pal[1]}" opacity=".9"/>`).join('')}`
-        + Array.from({ length: 9 }, () => { const x = (r() * W).toFixed(0), y = (r() * H).toFixed(0); return `<ellipse cx="${x}" cy="${y}" rx="9" ry="5" transform="rotate(${(r() * 180).toFixed(0)} ${x} ${y})" fill="#ffd2da" opacity=".9"/>`; }).join('') + '</g>';
-    } else if (item.category === 'gaming') {
-      const N = 7, S = 20, ox = 200 - N * S / 2, oy = 150 - N * S / 2 - 6;
-      const cells = [];
-      for (let y = 0; y < N; y++) for (let x = 0; x < Math.ceil(N / 2); x++) if (r() < .55) { cells.push([x, y]); if (x !== N - 1 - x) cells.push([N - 1 - x, y]); }
-      motif = `<g>${cells.map(([x, y]) => `<rect x="${ox + x * S}" y="${oy + y * S}" width="${S - 2}" height="${S - 2}" rx="3" fill="#fff6ea"/>`).join('')}</g>`
-        + `<g opacity=".18">${Array.from({ length: 30 }, (_, k) => `<rect y="${k * 10}" width="${W}" height="3" fill="#000"/>`).join('')}</g>`;
-    } else {
-      const pts = Array.from({ length: 8 }, () => [70 + r() * 260, 50 + r() * 200]);
-      const lines = [];
-      pts.forEach((p, i) => pts.forEach((q, j) => { if (j > i && Math.hypot(p[0] - q[0], p[1] - q[1]) < 150) lines.push(`<line x1="${p[0].toFixed(0)}" y1="${p[1].toFixed(0)}" x2="${q[0].toFixed(0)}" y2="${q[1].toFixed(0)}"/>`); }));
-      motif = `<g stroke="#fff6ea" stroke-width="2.5" opacity=".75">${lines.join('')}</g>`
-        + pts.map((p, i) => `<circle cx="${p[0].toFixed(0)}" cy="${p[1].toFixed(0)}" r="${i ? 7 : 16}" fill="#fff6ea"/>`).join('');
-    }
+    const pts = Array.from({ length: 8 }, () => [70 + r() * 260, 50 + r() * 200]);
+    const lines = [];
+    pts.forEach((p, i) => pts.forEach((q, j) => { if (j > i && Math.hypot(p[0] - q[0], p[1] - q[1]) < 150) lines.push(`<line x1="${p[0].toFixed(0)}" y1="${p[1].toFixed(0)}" x2="${q[0].toFixed(0)}" y2="${q[1].toFixed(0)}"/>`); }));
+    const motif = `<g stroke="#fff6ea" stroke-width="2.5" opacity=".75">${lines.join('')}</g>`
+      + pts.map((p, i) => `<circle cx="${p[0].toFixed(0)}" cy="${p[1].toFixed(0)}" r="${i ? 7 : 16}" fill="#fff6ea"/>`).join('');
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${pal[0]}"/><stop offset="1" stop-color="${pal[1]}"/></linearGradient><filter id="b" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="34"/></filter></defs><rect width="${W}" height="${H}" fill="url(#g)"/><g filter="url(#b)">${blobs}</g>${motif}</svg>`;
     const uri = `data:image/svg+xml,${encodeURIComponent(svg)}`;
     artCache.set(item.id, uri);
@@ -175,18 +159,19 @@
   function card(it, glass) {
     const v = votes[it.id] || 0;
     const img = it.image ? esc(it.image) : art(it);
+    const teaser = it.howItWorks || it.summary || '';
     return `
       <article class="news-card${glass ? ' news-card--glass' : ''}" data-id="${esc(it.id)}">
         <div class="news-card__media"><img src="${img}" alt="" loading="lazy" decoding="async">${it.sample ? '<span class="news-card__tag">Sample</span>' : ''}</div>
         <div class="news-card__body">
           <p class="news-card__meta"><a href="${esc(it.source.url)}" target="_blank" rel="noopener">${esc(it.source.name)}</a><span aria-hidden="true">·</span><time datetime="${esc(it.published)}">${fmtDate(it.published)}</time></p>
-          <h3 class="news-card__title">${esc(it.title)}${it.verified ? `<span class="news-card__check" role="img" aria-label="Verified" title="Verified${it.sources ? ` by ${it.sources} sources` : ''}${it.sample ? ' (sample)' : ''}">${VERIFIED}</span>` : ''}</h3>
-          <p class="news-card__sum">${esc(it.summary)}</p>
+          <h3 class="news-card__title"><button type="button" class="news-card__title-btn" data-article-open>${esc(it.title)}</button>${it.official ? `<span class="news-card__check" role="img" aria-label="Official source" title="Official source${it.sample ? ' (sample)' : ''}">${VERIFIED}</span>` : ''}</h3>
+          <p class="news-card__sum">${esc(teaser)}</p>
           <p class="news-card__by">By ${esc(it.author)} · <a href="${esc(it.source.url)}" target="_blank" rel="noopener">Original report ↗</a></p>
           <div class="news-card__foot">
             <button class="vote" type="button" data-vote="1" aria-pressed="${v === 1}" aria-label="Like">${THUMB_UP}<b data-live>${count(it, 'likes')}</b></button>
             <button class="vote" type="button" data-vote="-1" aria-pressed="${v === -1}" aria-label="Dislike">${THUMB_DOWN}<b data-live>${count(it, 'dislikes')}</b></button>
-            <a class="news-card__open" href="${esc(it.url)}" target="_blank" rel="noopener">Open article <span aria-hidden="true">+</span></a>
+            <button class="news-card__open" type="button" data-article-open>Read article <span aria-hidden="true">+</span></button>
           </div>
         </div>
       </article>`;
@@ -204,7 +189,7 @@
     if (readerGrid) readerGrid.innerHTML = inCat().map(it => card(it, true)).join('');
   }
   function setCat(cat, live = true) {
-    if (!['ai', 'anime', 'gaming'].includes(cat)) return;
+    if (!['models', 'claude', 'tools', 'projects', 'repos'].includes(cat)) return;
     const changed = cat !== news.cat;
     news.cat = cat;
     $$('.news__tabs [data-cat]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.cat === cat)));
@@ -214,7 +199,7 @@
     const b = e.target.closest('[data-cat]');
     if (b) { ui(); setCat(b.dataset.cat); }
   }));
-  // the AI / Anime / Gaming chips on the Home page pick the topic before flying to the news
+  // the Models / Claude / Tools / Projects / Repos chips on the Home page pick the topic before flying to the news
   $$('[data-news-cat]').forEach(b => b.addEventListener('click', () => setCat(b.dataset.newsCat)));
   // Likes and dislikes (remembered in this browser; a shared count needs the backend in docs/news-pipeline.md)
   document.addEventListener('click', e => {
@@ -256,6 +241,87 @@
       renderNews(true);
     });
 
+  // ---------- Refresh: trigger a real pipeline run from the site ----------
+  // The button can't call OpenRouter (or GitHub) directly — that would mean shipping an API key
+  // to every visitor's browser. Instead it calls a small Cloudflare Worker (cloudflare/worker.js)
+  // that holds a GitHub token server-side and fires the same workflow_dispatch a manual "Run
+  // workflow" click in the Actions tab would. Set this to your deployed Worker's URL (see
+  // cloudflare/README.md) — until then the button explains itself instead of failing silently.
+  const NEWS_TRIGGER_URL = 'https://peaceful-pursuit-news-trigger.loopend-0-21.workers.dev';
+  const NEWS_RAW_URL = 'https://raw.githubusercontent.com/HrithikL/Landing-Portfolio/main/data/news.json';
+  const refreshBtn = $('[data-news-refresh]');
+  const refreshLabel = refreshBtn ? $('[data-news-refresh-label]', refreshBtn) : null;
+  let refreshPoll = null;
+  function setRefreshLabel(text, busy) {
+    if (refreshLabel) refreshLabel.textContent = text;
+    if (refreshBtn) { refreshBtn.disabled = !!busy; refreshBtn.classList.toggle('is-busy', !!busy); }
+  }
+  function stopRefreshPoll() { if (refreshPoll) { clearInterval(refreshPoll); refreshPoll = null; } }
+  async function pullFreshNews() {
+    try {
+      const res = await fetch(`${NEWS_RAW_URL}?_=${Date.now()}`, { cache: 'no-cache' });
+      if (!res.ok) return false;
+      const data = await res.json();
+      news.items = (data.items || []).filter(it => it && it.id && it.title && it.source);
+      renderNews(true);
+      if (reader.open) renderReader();
+      const samples = news.items.some(it => it.sample);
+      if (status) status.textContent = samples ? 'Sample stories · the live feed is coming soon' : `Updated ${fmtDate(String(data.updated || '').slice(0, 10))}`;
+      return true;
+    } catch (e) { return false; }
+  }
+  function pollRefreshStatus(startedAt) {
+    const TIMEOUT_MS = 6 * 60 * 1000;
+    refreshPoll = setInterval(async () => {
+      if (Date.now() - startedAt > TIMEOUT_MS) {
+        stopRefreshPoll();
+        setRefreshLabel('Taking a while — check Actions', false);
+        setTimeout(() => setRefreshLabel('Refresh', false), 4000);
+        return;
+      }
+      let data;
+      try {
+        const res = await fetch(`${NEWS_TRIGGER_URL}/status`);
+        data = await res.json();
+      } catch (e) { return; } // a missed poll just tries again next tick
+      const run = data && data.run;
+      if (!run || new Date(run.createdAt).getTime() < startedAt - 5000) { setRefreshLabel('Queuing…', true); return; }
+      if (run.status !== 'completed') { setRefreshLabel(run.status === 'in_progress' ? 'Writing articles…' : 'Queuing…', true); return; }
+      stopRefreshPoll();
+      if (run.conclusion === 'success') {
+        setRefreshLabel('Updating…', true);
+        await pullFreshNews();
+        setRefreshLabel('Refreshed', false);
+      } else {
+        setRefreshLabel('Run failed — check Actions', false);
+      }
+      setTimeout(() => setRefreshLabel('Refresh', false), 4000);
+    }, 8000);
+  }
+  if (refreshBtn) refreshBtn.addEventListener('click', async () => {
+    if (refreshBtn.disabled) return;
+    ui();
+    if (!NEWS_TRIGGER_URL) {
+      setRefreshLabel('Not set up yet — see cloudflare/README.md', false);
+      setTimeout(() => setRefreshLabel('Refresh', false), 4000);
+      return;
+    }
+    setRefreshLabel('Starting…', true);
+    try {
+      const res = await fetch(`${NEWS_TRIGGER_URL}/trigger`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        setRefreshLabel(data && data.error === 'cooldown' ? `Wait ${Math.ceil((data.retryAfterSeconds || 60) / 60)} min` : 'Couldn’t start', false);
+        setTimeout(() => setRefreshLabel('Refresh', false), 4000);
+        return;
+      }
+      pollRefreshStatus(Date.now());
+    } catch (e) {
+      setRefreshLabel('Couldn’t reach the trigger', false);
+      setTimeout(() => setRefreshLabel('Refresh', false), 4000);
+    }
+  });
+
   // ---------- Full-screen reader ("View more") ----------
   const readerEl = $('#news-reader');
   const reader = { open: false, last: null };
@@ -281,6 +347,127 @@
   }
   $$('[data-news-more]').forEach(b => b.addEventListener('click', openReader));
   $$('[data-reader-close]').forEach(b => b.addEventListener('click', closeReader));
+
+  // ---------- Full article ("Read article") ----------
+  // The pipeline (scripts/news/, docs/news-pipeline.md) writes each item as a strict set of
+  // fields — never raw HTML — so a rewrite can never smuggle markup through into the page.
+  // Anything without these fields yet (samples, or a story the pipeline hasn't reached) falls
+  // back to showing its card summary as a single line.
+  const CAT_NAMES = { models: 'Open Source Models', claude: 'Claude Updates', tools: 'Free AI Tools', projects: 'AI Projects', repos: 'GitHub Repos' };
+  // [label, field key, kind] — kind picks how the value renders. Order here is the order shown.
+  const TEMPLATE_FIELDS = [
+    ['End user', 'endUser', 'text'],
+    ['Tools used', 'toolsUsed', 'list'],
+    ['Paid or free', 'costStructure', 'text'],
+    ['How it works', 'howItWorks', 'text'],
+    ['What input it needs', 'inputNeeded', 'text'],
+    ['What output it gives', 'outputGiven', 'text'],
+    ['Workflow', 'workflow', 'steps'],
+    ['Use cases', 'useCases', 'list'],
+    ['Hardware requirements', 'hardwareRequirements', 'text'],
+    ['Connects to', 'integrations', 'text'],
+    ['Subscriptions required', 'subscriptionsRequired', 'text'],
+  ];
+
+  // ---------- Workflow flowchart ----------
+  // No image API involved: the "Workflow" field is drawn as an actual flowchart (boxes + arrows),
+  // generated in the browser straight from the step text the pipeline already wrote. Free,
+  // instant, no key, no rate limit — reuses the same visual language as the About-me architecture
+  // diagram (.site-figure), with its own classes (.wf-*) so its per-node styling can't collide
+  // with that diagram's fixed layout.
+  function wrapLines(text, maxChars, maxLines) {
+    const words = String(text).split(/\s+/);
+    const lines = [];
+    let cur = '';
+    for (const w of words) {
+      const next = cur ? `${cur} ${w}` : w;
+      if (next.length > maxChars && cur) { lines.push(cur); cur = w; } else cur = next;
+    }
+    if (cur) lines.push(cur);
+    if (lines.length > maxLines) {
+      lines.length = maxLines;
+      lines[maxLines - 1] = lines[maxLines - 1].replace(/.{0,3}$/, '…');
+    }
+    return lines;
+  }
+  function workflowDiagram(steps) {
+    if (!Array.isArray(steps) || !steps.length) return '';
+    const MAX_NODES = 5;
+    const overflow = Math.max(0, steps.length - MAX_NODES);
+    const nodes = overflow > 0 ? [...steps.slice(0, MAX_NODES - 1), `+${overflow + 1} more step${overflow ? 's' : ''}`] : steps;
+    const n = nodes.length;
+    const boxW = 148, boxH = 96, gap = 40, padX = 20, padY = 26;
+    const W = padX * 2 + n * boxW + (n - 1) * gap;
+    const H = padY * 2 + boxH;
+    const cy = padY + boxH / 2;
+    let body = '';
+    nodes.forEach((step, i) => {
+      const x = padX + i * (boxW + gap);
+      const lines = wrapLines(step, 19, 3);
+      const startY = cy - ((lines.length - 1) * 8);
+      const tspans = lines.map((l, k) => `<tspan x="${x + boxW / 2}" dy="${k === 0 ? 0 : 16}">${esc(l)}</tspan>`).join('');
+      body += `<g class="wf-step">
+        <rect x="${x}" y="${padY}" width="${boxW}" height="${boxH}" rx="16"/>
+        <circle class="wf-num-bg" cx="${x + 24}" cy="${padY}" r="14"/>
+        <text class="wf-num" x="${x + 24}" y="${padY + 5}" text-anchor="middle">${i + 1}</text>
+        <text class="wf-text" x="${x + boxW / 2}" y="${startY}" text-anchor="middle">${tspans}</text>
+      </g>`;
+      if (i < n - 1) {
+        const x1 = x + boxW, x2 = x1 + gap - 8;
+        body += `<path class="wf-arrow" d="M${x1} ${cy} L${x2} ${cy}"/><path class="wf-arrow-head" d="M${x2 - 8} ${cy - 6} L${x2} ${cy} L${x2 - 8} ${cy + 6}z"/>`;
+      }
+    });
+    return `<figure class="site-figure workflow-fig"><svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${body}</svg></figure>`;
+  }
+
+  function renderTemplate(it) {
+    if (!it.howItWorks) return `<p>${esc(it.summary || '')}</p>`; // sample/legacy item with no template yet
+    const rows = TEMPLATE_FIELDS.map(([label, key, kind]) => {
+      const v = it[key];
+      if (!v || (Array.isArray(v) && !v.length)) return '';
+      const value = kind === 'list' ? `<ul class="article__list">${v.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`
+        : kind === 'steps' ? workflowDiagram(v) + `<ol class="article__list article__list--steps">${v.map(x => `<li>${esc(x)}</li>`).join('')}</ol>`
+        : `<p>${esc(v)}</p>`;
+      return `<div class="article__field"><p class="article__field-label">${esc(label)}</p>${value}</div>`;
+    }).join('');
+    const tag = it.topicTag ? `<span class="article__tag">${esc(it.topicTag)}</span>` : '';
+    const hero = `<img class="article__hero" src="${it.image ? esc(it.image) : art(it)}" alt="">`;
+    return hero + tag + rows;
+  }
+  const articleEl = $('#article');
+  const article = { open: false, last: null };
+  function openArticle(id) {
+    const it = news.items.find(x => x.id === id);
+    if (!articleEl || article.open || !it) return;
+    article.open = true;
+    article.last = document.activeElement;
+    const mins = it.readingTime || 1;
+    $('[data-article-kicker]', articleEl).textContent = `${CAT_NAMES[it.category] || it.category} · ${fmtDate(it.published)} · ${mins} min read`;
+    $('[data-article-title]', articleEl).textContent = it.title;
+    $('[data-article-body]', articleEl).innerHTML = renderTemplate(it)
+      + `<a class="article__original" href="${esc(it.url)}" target="_blank" rel="noopener">Read the original at ${esc(it.source.name)} <span aria-hidden="true">↗</span></a>`;
+    $('[data-article-body]', articleEl).scrollTop = 0;
+    articleEl.hidden = false;
+    overlay(true, { hideScene: true, onEscape: closeArticle });
+    requestAnimationFrame(() => articleEl.classList.add('is-open'));
+    setTimeout(() => { const c = $('[data-article-close]', articleEl); if (c) c.focus({ preventScroll: true }); }, 60);
+    ui();
+  }
+  function closeArticle() {
+    if (!article.open) return;
+    article.open = false;
+    articleEl.classList.remove('is-open');
+    overlay(false);
+    setTimeout(() => { if (!article.open) articleEl.hidden = true; }, reduced ? 0 : 480);
+    if (article.last && article.last.focus) article.last.focus({ preventScroll: true });
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-article-open]');
+    if (!b) return;
+    const id = b.closest('.news-card');
+    if (id) { ui(); openArticle(id.dataset.id); }
+  });
+  $$('[data-article-close]').forEach(b => b.addEventListener('click', closeArticle));
 
   // =========================================================
   // About me: tiles open a panel from the middle of the screen
@@ -324,7 +511,7 @@
   // Keep keyboard focus inside whichever dialog is open
   document.addEventListener('keydown', e => {
     if (e.key !== 'Tab') return;
-    const box = reader.open ? readerEl : sheet.open ? $('.sheet__panel', sheetEl) : null;
+    const box = reader.open ? readerEl : sheet.open ? $('.sheet__panel', sheetEl) : article.open ? $('.sheet__panel', articleEl) : null;
     if (!box) return;
     const f = $$('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])', box).filter(el => el.offsetParent);
     if (!f.length) return;
@@ -333,5 +520,5 @@
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
 
-  if (/[?&]debug\b/.test(location.search)) window.__content = { news, openReader, closeReader, openSheet, closeSheet, setCat, renderShelf };
+  if (/[?&]debug\b/.test(location.search)) window.__content = { news, openReader, closeReader, openArticle, closeArticle, openSheet, closeSheet, setCat, renderShelf };
 })();

@@ -1,0 +1,11 @@
+# Node deps for the (CI-only) news pipeline — never needed by the static site itself
+scripts/news/node_modules/
+# Any locally-named env file with your API keys (.env, openrouterkey.env, etc.) — never .env.example
+scripts/news/*.env
+
+# Wrangler's local account/build cache (Cloudflare Worker deploys) — not project state
+.wrangler/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db

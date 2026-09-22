@@ -188,13 +188,15 @@
             <li class="agenda__item">
               <a class="agenda__link" href="#news" data-goto="news">
                 <span class="agenda__num">01</span>
-                <span class="agenda__body"><b>Cool news</b><small>The latest verified stories, a quick read each</small></span>
+                <span class="agenda__body"><b>Cool news</b><small>Models, Claude updates, free tools, projects and repos — one spec sheet each</small></span>
                 <span class="agenda__go" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
               </a>
               <span class="agenda__chips">
-                <button type="button" data-goto="news" data-news-cat="ai">AI</button>
-                <button type="button" data-goto="news" data-news-cat="anime">Anime</button>
-                <button type="button" data-goto="news" data-news-cat="gaming">Gaming</button>
+                <button type="button" data-goto="news" data-news-cat="models">Models</button>
+                <button type="button" data-goto="news" data-news-cat="claude">Claude</button>
+                <button type="button" data-goto="news" data-news-cat="tools">Tools</button>
+                <button type="button" data-goto="news" data-news-cat="projects">Projects</button>
+                <button type="button" data-goto="news" data-news-cat="repos">Repos</button>
               </span>
             </li>
             <li class="agenda__item">
@@ -236,11 +238,19 @@
           <h2 class="sec-title">Fresh from the <em>feed</em>.</h2>
           <div class="news__bar">
             <div class="seg news__tabs" role="tablist" aria-label="News topic">
-              <button type="button" role="tab" aria-selected="true" data-cat="ai">AI</button>
-              <button type="button" role="tab" aria-selected="false" data-cat="anime">Anime</button>
-              <button type="button" role="tab" aria-selected="false" data-cat="gaming">Gaming</button>
+              <button type="button" role="tab" aria-selected="true" data-cat="models">Models</button>
+              <button type="button" role="tab" aria-selected="false" data-cat="claude">Claude</button>
+              <button type="button" role="tab" aria-selected="false" data-cat="tools">Tools</button>
+              <button type="button" role="tab" aria-selected="false" data-cat="projects">Projects</button>
+              <button type="button" role="tab" aria-selected="false" data-cat="repos">Repos</button>
             </div>
-            <p class="news__note"><i aria-hidden="true"></i><span data-news-status>Sample stories · the live feed is coming soon</span></p>
+            <span class="news__status-group">
+              <p class="news__note"><i aria-hidden="true"></i><span data-news-status>Sample stories · the live feed is coming soon</span></p>
+              <button class="news__refresh" type="button" data-news-refresh>
+                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span data-news-refresh-label>Refresh</span>
+              </button>
+            </span>
           </div>
           <div class="news__grid" data-news-grid aria-live="polite"></div>
           <div class="news__more">
@@ -420,9 +430,11 @@
         <h2 class="sec-title" id="reader-title">Every <em>story</em>.</h2>
       </div>
       <div class="seg news__tabs" role="tablist" aria-label="News topic">
-        <button type="button" role="tab" aria-selected="true" data-cat="ai">AI</button>
-        <button type="button" role="tab" aria-selected="false" data-cat="anime">Anime</button>
-        <button type="button" role="tab" aria-selected="false" data-cat="gaming">Gaming</button>
+        <button type="button" role="tab" aria-selected="true" data-cat="models">Models</button>
+        <button type="button" role="tab" aria-selected="false" data-cat="claude">Claude</button>
+        <button type="button" role="tab" aria-selected="false" data-cat="tools">Tools</button>
+        <button type="button" role="tab" aria-selected="false" data-cat="projects">Projects</button>
+        <button type="button" role="tab" aria-selected="false" data-cat="repos">Repos</button>
       </div>
       <button class="reader__close" type="button" data-reader-close aria-label="Close the news"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
     </div>
@@ -441,6 +453,19 @@
         <button class="reader__close" type="button" data-sheet-close aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
       </header>
       <div class="sheet__body" data-lenis-prevent></div>
+    </div>
+  </div>
+
+  <!-- A Cool News card opens here: the full rewritten article, plus a link to the original report -->
+  <div class="sheet article" id="article" role="dialog" aria-modal="true" aria-labelledby="article-title" hidden>
+    <div class="sheet__backdrop" data-article-close></div>
+    <div class="sheet__panel">
+      <header class="sheet__head">
+        <span class="sheet__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24"><path d="M5 4h11l3 3v13H5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 10h7M9 13.5h7M9 17h4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+        <div><p class="sheet__kicker" data-article-kicker></p><h2 class="sheet__title" id="article-title" data-article-title></h2></div>
+        <button class="reader__close" type="button" data-article-close aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+      </header>
+      <div class="sheet__body article__body" data-lenis-prevent data-article-body></div>
     </div>
   </div>
 

@@ -1,0 +1,17 @@
+name = "peaceful-pursuit-news-trigger"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Non-secret config. GITHUB_TOKEN is NOT here — it's a secret, set separately (see README.md) so
+# it never ends up in git.
+[vars]
+GITHUB_OWNER = "HrithikL"
+GITHUB_REPO = "Landing-Portfolio"
+WORKFLOW_FILE = "news.yml"
+# Comma-separated list of origins allowed to call /trigger. localhost is always allowed for local
+# dev, regardless of this value. Set this to wherever the site actually ends up hosted.
+ALLOWED_ORIGIN = "https://hrithikl.github.io"
+
+[[kv_namespaces]]
+binding = "NEWS_KV"
+id = "71cc41c7d0f4440dbb58b21d280491bb"
