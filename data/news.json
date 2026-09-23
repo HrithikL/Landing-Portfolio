@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated": "2026-09-23T12:07:24.124Z",
+  "updated": "2026-09-23T12:21:36.691Z",
   "note": "Sample stories in the new template. The pipeline (scripts/news/, docs/news-pipeline.md) will replace these with real, generated items in the same shape.",
   "categories": {
     "models": "Open Source Models",
