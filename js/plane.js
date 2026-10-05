@@ -1439,6 +1439,15 @@
 
   // Explosions on the "ground" band near the bottom of the screen
   const cHot = col(0xFFE27A), cMid = col(0xFF6410), cDark = col(0x4E1606), cSmoke0 = col(0x2E2622), cSmoke1 = col(0x9A8D82), tmpCol = new THREE.Color();
+  // explosion fire ramp: white-hot core → yellow → orange → deep red → soot
+  const FIRE_RAMP = [[0, col(0xFFF6DC)], [.08, col(0xFFD45A)], [.25, col(0xFF7A1A)], [.5, col(0xB8300A)], [.75, col(0x3A1408)], [1, col(0x1A1210)]];
+  const rampAt = (k, out) => {
+    for (let i = 1; i < FIRE_RAMP.length; i++) {
+      const [k1, c1] = FIRE_RAMP[i];
+      if (k <= k1) { const [k0, c0] = FIRE_RAMP[i - 1]; return out.copy(c0).lerp(c1, (k - k0) / (k1 - k0)); }
+    }
+    return out.copy(FIRE_RAMP[FIRE_RAMP.length - 1][1]);
+  };
   function burstPoints(n, color, blending, size) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
@@ -1463,11 +1472,12 @@
       g, t: 0, size: 1, active: false,
       scorch: flat(fxTex.scorch, 0xFFFFFF, THREE.NormalBlending),
       ring: flat(fxTex.ring, 0xFF9A40, NORMAL),
-      smoke: Array.from({ length: 8 }, () => ({ s: sprite(fxTex.smoke, 0x2E2622), off: new V3(), vel: new V3(), delay: 0, grow: 1, rot: 0 })),
-      fire: Array.from({ length: 7 }, () => ({ s: sprite(fxTex.fire, 0xFFFFFF, NORMAL), off: new V3(), delay: 0, grow: 1, rot: 0 })),
+      smoke: Array.from({ length: 12 }, () => ({ s: sprite(fxTex.smoke, 0x2E2622), off: new V3(), vel: new V3(), delay: 0, grow: 1, rot: 0 })),
+      fire: Array.from({ length: 12 }, () => ({ s: sprite(fxTex.fire, 0xFFFFFF, NORMAL), off: new V3(), vel: new V3(), delay: 0, grow: 1, rot: 0, life: 1 })),
       flash: sprite(fxTex.glow, 0xFFC45A, NORMAL),
-      sparks: burstPoints(22, 0xFF8A1E, NORMAL, .26),
-      dirt: burstPoints(14, 0x2A1F18, NORMAL, .2),
+      shock: sprite(fxTex.ring, 0xFFE2B0, NORMAL),
+      sparks: burstPoints(40, 0xFF9A2E, NORMAL, .22),
+      dirt: burstPoints(18, 0x1E1714, NORMAL, .24),
     };
     g.add(e.sparks.pts, e.dirt.pts);
     g.visible = false;
@@ -1476,7 +1486,7 @@
     return e;
   });
   let explosionCursor = 0;
-  const fireSys = makeParticles(160, fxTex.fire, false);
+  const fireSys = makeParticles(260, fxTex.fire, false);
   fireSys.material.depthTest = true;
   const expTmp = new V3();
 
@@ -2604,7 +2614,7 @@
       const posAt = (jp, v) => v.copy(K).addScaledVector(dir, vE * (jp - jpK) * D);
       aim();
       for (let tries = 0; tries < 6 && clearance(posAt, jpK - LEAD / D, jpK + .6 / D) < SAFE; tries++) { wide *= 1.3; aim(); }
-      let foe = null, done = false, hits = 0;
+      let foe = null, done = false;
       const path = T => {
         posAt(progress(foe, T), fxD);
         out.x = fxD.x; out.y = fxD.y; out.z = fxD.z;
@@ -2618,22 +2628,15 @@
         foe.vel.add(fxB.set(side * 5 * s, -2.4 * s, 3 * s));
       };
       downs.push(down);
-      at(jpK - LEAD / D, () => { foe = df.launch(path, livery, .72); });
+      at(jpK - LEAD / D, () => { foe = df.launch(path, livery, .72); if (foe) foe.hits = 0; });
       burst(jpK - .95 / D, jpK - .04 / D, .05, () => {
         if (!foe || !foe.alive) return;
         jump.track = foe;
         jump.trackT = time;
         // hold fire until the target is in the gunsight
         if (fxA.subVectors(foe.pos, plane.position).normalize().dot(forward) < Math.cos(.3)) return;
-        const lead = foe.pos.distanceTo(plane.position) / (50 * scale);
-        fireGun(model.guns[gunCursor++ % model.guns.length], fxC.copy(foe.pos).addScaledVector(foe.vel, lead));
-        // rounds striking home: sparks on the airframe, then it starts to smoke
-        if (Math.random() < .32) {
-          hits++;
-          explode(fxD.copy(foe.pos).add(fxB.set(Math.random() - .5, Math.random() - .5, Math.random() - .5).multiplyScalar(foe.world)), { air: true, size: .09, quiet: true });
-          if (sfx) sfx.ping(panOf(foe.pos));
-          if (hits >= 2) foe.smoke = 1;
-        }
+        // fireGun solves the intercept itself and the rounds decide the hits (see the tracer loop)
+        fireGun(model.guns[gunCursor++ % model.guns.length], foe.pos, foe);
       });
       at(jpK, down);
     }
@@ -2809,7 +2812,7 @@
       };
       const end = jpK + (rocket ? .3 : 0) / D;
       for (let tries = 0; tries < 6 && clearance(posAt, jpK - 2.1 / D, end) < SAFE; tries++) wide *= 1.2;
-      let foe = null, done = false, hits = 0;
+      let foe = null, done = false;
       const path = T => {
         posAt(progress(foe, T), fxD);
         out.x = fxD.x; out.y = fxD.y; out.z = fxD.z;
@@ -2822,22 +2825,15 @@
         df.kill(foe, 'burn');
         foe.vel.add(fxB.set(side * 4.5 * s, -2.2 * s, 1.5 * s));
       };
-      at(jpK - 2.1 / D, () => { foe = df.launch(path, livery, .66); });
+      at(jpK - 2.1 / D, () => { foe = df.launch(path, livery, .66); if (foe) foe.hits = 0; });
       burst(jpK - (rocket ? 1.05 : .7) / D, jpK - (rocket ? .55 : .03) / D, .05, () => {
         if (!foe || !foe.alive) return;
         jump.track = foe;
         jump.trackT = time;
         // hold fire until the target is in the gunsight
         if (fxA.subVectors(foe.pos, plane.position).normalize().dot(forward) < Math.cos(.3)) return;
-        const lead2 = foe.pos.distanceTo(plane.position) / (50 * scale);
-        fireGun(model.guns[gunCursor++ % model.guns.length], fxC.copy(foe.pos).addScaledVector(foe.vel, lead2));
-        // rounds striking home: sparks on the airframe, then it starts to smoke
-        if (Math.random() < .3) {
-          hits++;
-          explode(fxD.copy(foe.pos).add(fxB.set(Math.random() - .5, Math.random() - .5, Math.random() - .5).multiplyScalar(foe.world)), { air: true, size: .09, quiet: true });
-          if (sfx) sfx.ping(panOf(foe.pos));
-          if (hits >= 2) foe.smoke = 1;
-        }
+        // fireGun solves the intercept itself and the rounds decide the hits (see the tracer loop)
+        fireGun(model.guns[gunCursor++ % model.guns.length], foe.pos, foe);
       });
       if (rocket) at(jpK - .42 / D, () => { if (!foe || !foe.alive || !airRocket(foe, down)) down(); });
       at(rocket ? jpK + .3 / D : jpK, down);
@@ -3258,7 +3254,28 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
   // Comfortably in front of the camera (safe to project)
   const inFront = v => fxD.copy(v).applyMatrix4(camera.matrixWorldInverse).z < -1.5;
 
-  function fireGun(gn, aim) {
+  // Where to point so a round fired from `from` at `speed` meets a target at P moving at V: the smallest
+  // positive t with |P + V t - from| = speed * t. Writes the meeting point to `out`; returns t, or -1 if the
+  // target is outrunning the rounds.
+  function intercept(from, P, V, speed, out) {
+    fxD.subVectors(P, from);
+    const a = V.dot(V) - speed * speed, b = 2 * fxD.dot(V), c = fxD.dot(fxD);
+    let t;
+    if (Math.abs(a) < 1e-6) t = b < 0 ? -c / b : -1;
+    else {
+      const disc = b * b - 4 * a * c;
+      if (disc < 0) return -1;
+      const r = Math.sqrt(disc), t1 = (-b - r) / (2 * a), t2 = (-b + r) / (2 * a);
+      t = Math.min(t1, t2) > 0 ? Math.min(t1, t2) : Math.max(t1, t2);
+    }
+    if (!(t > 0)) return -1;
+    out.copy(P).addScaledVector(V, t);
+    return t;
+  }
+  const GUNSIGHT = .3;                    // rad: the cone the scripted gunner holds fire outside of
+  const DISPERSION = .0045;               // rad: the natural scatter of the guns, so a few rounds go wide
+
+  function fireGun(gn, aim, target) {
     gn.flashT = .04 + Math.random() * .025;
     gn.recoil = 1;
     gn.flash.star.material.rotation = Math.random() * Math.PI;
@@ -3275,26 +3292,31 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
     d.life = 0;
     d.lastHead = 0;
     d.game = gameFiring;
+    d.target = null;
     d.dir.copy(forward);
     d.dir.y = 0;
     d.dir.normalize();
     if (aim) {
-      // Jump battle: the rounds leave along the barrels (the guns are harmonised to converge a few degrees
-      // at most), with a little spread; they never bend off towards a target outside the sight
-      fxB.subVectors(aim, d.start);
+      // Jump battle: the gunner leads the target properly. The rounds fly dead straight at a fixed speed,
+      // so we solve where the target will be when they arrive and point the stream there (only inside the
+      // gunsight cone — never bending round to something off to the side), plus the guns' own small
+      // scatter. Whether a round hits is then decided by its actual path, in the tracer loop below.
+      d.speed = 50 * scale;
+      const tHit = target && target.vel ? intercept(d.start, aim, target.vel, d.speed, fxC) : -1;
+      fxB.subVectors(tHit > 0 ? fxC : aim, d.start);
       const dist = fxB.length() || 1;
       fxB.divideScalar(dist);
+      const ang = Math.acos(clamp(forward.dot(fxB), -1, 1));
       d.dir.copy(forward);
-      const ang = Math.acos(clamp(d.dir.dot(fxB), -1, 1));
-      if (ang > 1e-4) d.dir.lerp(fxB, Math.min(1, .085 / ang)).normalize();
-      d.dir.x += (Math.random() - .5) * .018;
-      d.dir.y += (Math.random() - .5) * .018;
-      d.dir.z += (Math.random() - .5) * .018;
-      d.dir.normalize();
-      d.speed = 50 * scale;
+      if (ang > 1e-4) d.dir.lerp(fxB, Math.min(1, GUNSIGHT / ang)).normalize();
+      // scatter: a random offset perpendicular to the line of fire
+      fxD.set(Math.random() - .5, Math.random() - .5, Math.random() - .5).cross(d.dir).normalize()
+        .multiplyScalar(DISPERSION * Math.sqrt(-2 * Math.log(Math.random() + 1e-6)) * .7);
+      d.dir.add(fxD).normalize();
       d.len = .8 * scale;
-      d.max = Math.min(.7, dist / d.speed + .08);
+      d.max = Math.min(.9, (tHit > 0 ? tHit : dist / d.speed) + .25);   // carry on past the target if it misses
       d.front = false;
+      d.target = target || null;
     } else if (d.game) {
       // Mini-game turret: aim is left/right only; the gunner finds the height of the nearest target
       d.speed = 56 * scale;
@@ -3404,6 +3426,29 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
           d.on = tr.visible = false;
           if (game) { const sp = toScreen(hitAt); game.kill(sp.x, sp.y); }
           continue;
+        }
+      }
+      if (d.target) {
+        // swept test: the stretch this round covered this frame against the target's hit sphere, now
+        const T = d.target;
+        fxA.copy(d.start).addScaledVector(d.dir, head);
+        fxB.copy(d.start).addScaledVector(d.dir, d.lastHead);
+        d.lastHead = head;
+        if (!T.alive) d.target = null;
+        else {
+          fxC.subVectors(fxA, fxB);
+          const segLen2 = fxC.lengthSq() || 1e-9;
+          const k = clamp(fxD.subVectors(T.pos, fxB).dot(fxC) / segLen2, 0, 1);
+          fxC.multiplyScalar(k).add(fxB);                     // closest point of the round's path
+          if (fxC.distanceTo(T.pos) < T.world * .42) {
+            d.on = tr.visible = false;
+            d.target = null;
+            explode(fxC, { air: true, size: .09, quiet: true });
+            if (sfx) sfx.ping(panOf(T.pos));
+            T.hits = (T.hits || 0) + 1;
+            if (T.hits >= 2) T.smoke = 1;
+            continue;
+          }
         }
       }
       const fade = d.hit || d.game ? 1 : 1 - Math.pow(d.life / d.max, 2);
@@ -3626,29 +3671,35 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
     e.t = 0;
     e.active = e.g.visible = true;
     e.ring.visible = e.scorch.visible = !e.air;
+    e.shock.visible = e.air;
+    // Fireball: a white-hot core plus a ring of turbulent puffs thrown outward that slow, rise on their own
+    // heat and burn down through the ramp to soot; a few go off a beat late (secondary bursts).
     e.fire.forEach((f, i) => {
-      f.off.set(Math.random() - .5, Math.random() * .6, Math.random() - .5).multiplyScalar(i ? 1.1 : .2);
-      if (e.air) f.off.y -= .3;
-      f.delay = i ? Math.random() * .1 : 0;
-      f.grow = i ? .7 + Math.random() * .6 : 1.5;
-      f.rot = (Math.random() - .5) * 2;
+      f.vel.set(Math.random() - .5, Math.random() - (e.air ? .5 : .15), Math.random() - .5).normalize()
+        .multiplyScalar((i ? 1.4 + Math.random() * 1.6 : .2) * S);
+      f.off.set(0, 0, 0);
+      f.delay = i < 3 ? 0 : Math.random() * .22;
+      f.grow = i ? .55 + Math.random() * .7 : 1.6;
+      f.life = i ? .7 + Math.random() * .6 : .55;
+      f.rot = (Math.random() - .5) * 2.4;
       f.s.material.rotation = Math.random() * Math.PI * 2;
     });
+    // Smoke: a billowing column that keeps rising and spreading long after the fire is out
     e.smoke.forEach(f => {
-      f.off.set(Math.random() - .5, Math.random() * .4, Math.random() - .5).multiplyScalar(1.2);
-      f.vel.set((Math.random() - .5) * .4, (e.air ? .2 : .5) + Math.random() * .9, (Math.random() - .5) * .4);
-      f.delay = .08 + Math.random() * .25;
-      f.grow = (1 + Math.random() * .8) * (e.air ? .8 : 1);
-      f.rot = (Math.random() - .5) * .6;
+      f.off.set(Math.random() - .5, Math.random() * .4, Math.random() - .5).multiplyScalar(1.1);
+      f.vel.set((Math.random() - .5) * .5, (e.air ? .25 : .55) + Math.random() * .8, (Math.random() - .5) * .5);
+      f.delay = .12 + Math.random() * .4;
+      f.grow = (1.1 + Math.random() * .9) * (e.air ? .85 : 1);
+      f.rot = (Math.random() - .5) * .5;
       f.s.material.rotation = Math.random() * Math.PI * 2;
     });
-    [[e.sparks, 1.8, 3.8], [e.dirt, 1.2, 2.6]].forEach(([b, v0, v1]) => {
+    [[e.sparks, 3, 6.5], [e.dirt, 1.4, 3.4]].forEach(([b, v0, v1]) => {
       const arr = b.pts.geometry.attributes.position.array;
       arr.fill(0);
       b.pts.geometry.attributes.position.needsUpdate = true;
       b.pts.material.size = b.base * S;
       b.vel.forEach(v => {
-        v.set(Math.random() - .5, (e.air ? -.4 : .35) + Math.random() * .8, Math.random() - .5).normalize().multiplyScalar((v0 + Math.random() * (v1 - v0)) * S);
+        v.set(Math.random() - .5, (e.air ? -.2 : .35) + Math.random() * .9, Math.random() - .5).normalize().multiplyScalar((v0 + Math.random() * (v1 - v0)) * S);
       });
     });
     if (sfx && !o.quiet) sfx.boom(panOf(p), clamp(20 / d, .18, 1) * Math.sqrt(o.size || 1), e.air);
@@ -3659,11 +3710,19 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
       if (!e.active) continue;
       e.t += dt;
       const t = e.t, S = e.size;
-      if (t > 3.5) { e.active = e.g.visible = false; continue; }
-      const fl = clamp(t / .16, 0, 1);
+      if (t > 4.6) { e.active = e.g.visible = false; continue; }
+      // the flash: a blinding instant that collapses fast
+      const fl = clamp(t / .12, 0, 1);
       e.flash.visible = fl < 1;
-      e.flash.scale.setScalar(S * (1 + fl * 3.4));
-      e.flash.material.opacity = (1 - fl) * .85;
+      e.flash.scale.setScalar(S * (1.4 + easeOut(fl) * 4));
+      e.flash.material.opacity = Math.pow(1 - fl, 1.6);
+      // in the air, a pale pressure ring snaps outward and is gone
+      if (e.air) {
+        const sk = clamp(t / .35, 0, 1);
+        e.shock.visible = sk < 1;
+        e.shock.scale.setScalar(S * (.6 + easeOut(sk) * 5));
+        e.shock.material.opacity = (1 - sk) * .35;
+      }
       if (!e.air) {
         const rk = clamp(t / .6, 0, 1);
         e.ring.visible = rk < 1;
@@ -3674,22 +3733,23 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
       }
       e.fire.forEach(f => {
         const lt = t - f.delay;
-        f.s.visible = lt > 0 && lt < 1;
+        f.s.visible = lt > 0 && lt < f.life;
         if (!f.s.visible) return;
-        const k = lt, grow = easeOut(clamp(lt / .32, 0, 1));
-        f.s.position.copy(f.off).multiplyScalar(S * (.3 + grow * .7));
-        f.s.position.y += lt * lt * (e.air ? .5 : 1.4) * S;
-        f.s.scale.setScalar(S * f.grow * (.3 + grow * 1.1));
-        f.s.material.rotation += f.rot * dt;
-        if (k < .25) tmpCol.copy(cHot).lerp(cMid, k / .25);
-        else tmpCol.copy(cMid).lerp(cDark, (k - .25) / .75);
+        const k = lt / f.life, grow = easeOut(clamp(lt / .28, 0, 1));
+        // thrown out fast, dragged to a stop by the air, then lifted by its own heat
+        const travel = (1 - Math.exp(-lt * 4.5)) / 4.5;
+        f.s.position.copy(f.vel).multiplyScalar(travel);
+        f.s.position.y += lt * lt * (e.air ? .7 : 1.6) * S;
+        f.s.scale.setScalar(S * f.grow * (.35 + grow * 1.05 + k * .35));
+        f.s.material.rotation += f.rot * dt * (1 - k * .7);
+        rampAt(k, tmpCol);
         f.s.material.color.copy(tmpCol);
-        f.s.material.opacity = 1 - smooth(.3, 1, k);
+        f.s.material.opacity = smooth(0, .04, lt) * (1 - smooth(.55, 1, k));
         f.s.visible = false;
         fireSys.push(expTmp.copy(f.s.position).add(e.g.position), f.s.scale.x, f.s.material.rotation, tmpCol, f.s.material.opacity);
       });
       e.smoke.forEach(f => {
-        const lt = t - f.delay, k = lt / 3;
+        const lt = t - f.delay, k = lt / 4;
         f.s.visible = lt > 0 && k < 1;
         if (!f.s.visible) return;
         f.s.position.copy(f.off).multiplyScalar(S).addScaledVector(f.vel, S * lt);
@@ -3700,13 +3760,20 @@ const rollAt = u => { const q = clamp((u - .04) / .11, 0, 1); return ROLL_V * .0
         f.s.visible = false;
         smokeSys.push(expTmp.copy(f.s.position).add(e.g.position), f.s.scale.x, f.s.material.rotation, f.s.material.color, f.s.material.opacity);
       });
-      (e.bursts || (e.bursts = [[e.sparks, 14, .9], [e.dirt, 12, 1.3]])).forEach(([b, grav, life]) => {
-        b.pts.visible = t < life && !(e.air && b === e.dirt);
+      // sparks streak out and slow in the air; debris tumbles down trailing thin smoke
+      (e.bursts || (e.bursts = [[e.sparks, 6, .8, 2.2], [e.dirt, 9.8, 2.2, .6]])).forEach(([b, grav, life, drag]) => {
+        b.pts.visible = t < life;
         if (!b.pts.visible) return;
         const arr = b.pts.geometry.attributes.position.array;
+        const keep = Math.exp(-drag * dt);
         for (let i = 0; i < b.n; i++) {
           const v = b.vel[i];
+          v.multiplyScalar(keep);
           v.y -= grav * S * dt;
+          if (b === e.dirt && i % 3 === 0 && t < 1.6 && frameNo % 2 === 0) {
+            expTmp.set(arr[i * 3], arr[i * 3 + 1], arr[i * 3 + 2]).add(e.g.position);
+            smokeSys.push(expTmp, S * (.18 + t * .25), i, cSmoke0, .35 * (1 - t / 1.6));
+          }
           arr[i * 3] += v.x * dt;
           arr[i * 3 + 1] += v.y * dt;
           arr[i * 3 + 2] += v.z * dt;

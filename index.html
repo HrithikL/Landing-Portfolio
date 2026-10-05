@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Peaceful Pursuit</title>
-  <meta name="description" content="Peaceful Pursuit: a tiny little world by Hrithik Lega, with cool news in AI, anime and gaming, free website-building resources and a dogfight.">
+  <title>Endless Pursuit</title>
+  <meta name="description" content="Endless Pursuit: a tiny little world by Hrithik Lega, with cool AI-builder news, free website-building resources and a dogfight.">
   <meta name="theme-color" content="#fdf0e0">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='20' fill='%23f74a20'/%3E%3Cg stroke='%23f74a20' stroke-width='8' stroke-linecap='round'%3E%3Cpath d='M50 8v16M50 76v16M8 50h16M76 50h16M20 20l11 11M69 69l11 11M20 80l11-11M69 31l11-11'/%3E%3C/g%3E%3C/svg%3E">
   <script>
@@ -20,16 +20,17 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Yellowtail&family=Sacramento&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=20260920p">
+  <link rel="stylesheet" href="css/styles.css?v=20261005e">
 </head>
 <body>
 
   <!-- Atmosphere -->
   <div class="bg" aria-hidden="true">
     <canvas class="bg__mesh"></canvas>
-    <span class="bg__stars"><i></i><i></i></span>
+    <span class="bg__stars"><canvas class="bg__starfield"></canvas></span>
   </div>
   <canvas id="scene" aria-hidden="true"></canvas>
+  <canvas id="flyers-back" aria-hidden="true"></canvas>
   <canvas id="embers" aria-hidden="true"></canvas>
   <button class="podium-hint" type="button" tabindex="-1">
     <span class="podium-hint__icon" aria-hidden="true">
@@ -37,14 +38,6 @@
     </span>
     <span class="podium-hint__text"><b>Defend the tower</b><small>Scroll sideways to defend</small></span>
   </button>
-  <div class="fly-hint" aria-hidden="true">
-    <span class="fly-hint__gauge">
-      <svg class="fly-hint__ring" viewBox="0 0 36 36"><circle class="fly-hint__track" cx="18" cy="18" r="15.5"/><circle class="fly-hint__fill" cx="18" cy="18" r="15.5" pathLength="1"/></svg>
-      <svg class="fly-hint__arrow" viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </span>
-    <span class="fly-hint__text">Keep scrolling to fly on</span>
-  </div>
-
   <!-- Preloader -->
   <div class="loader" id="loader" aria-hidden="true">
     <div class="loader__inner">
@@ -52,12 +45,12 @@
         <circle class="loader__track" cx="100" cy="100" r="97"/>
         <circle class="loader__progress" cx="100" cy="100" r="97" pathLength="1"/>
       </svg>
-      <div class="loader__name">Peaceful<br>Pursuit<span>.</span></div>
+      <div class="loader__name">Endless<br>Pursuit<span>.</span></div>
       <div class="loader__meta"><span>Preparing for take-off</span><span class="loader__count">000</span></div>
     </div>
     <!-- Shown once loading is done: pick the experience, then the page opens -->
     <div class="loader__menu" role="dialog" aria-modal="true" aria-labelledby="mode-q" aria-hidden="true">
-      <p class="loader__eyebrow"><span class="pill__dot" aria-hidden="true"></span>Peaceful Pursuit · Ready for take-off</p>
+      <p class="loader__eyebrow"><span class="pill__dot" aria-hidden="true"></span>Endless Pursuit · Ready for take-off</p>
       <p class="loader__q" id="mode-q">How would you like your <em>experience</em>?</p>
       <div class="mode-cards">
         <button type="button" class="mode-card mode-card--peaceful" data-mode="peaceful">
@@ -88,7 +81,7 @@
   <header class="nav">
     <a class="brand" href="#home" data-goto="home" aria-label="Peaceful Pursuit — back to the start">
       <span class="brand__mark" aria-hidden="true"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="20" fill="currentColor"/><g stroke="currentColor" stroke-width="7" stroke-linecap="round"><path d="M50 8v16M50 76v16M8 50h16M76 50h16M20 20l11 11M69 69l11 11M20 80l11-11M69 31l11-11"/></g></svg></span>
-      <span class="brand__name">Peaceful Pursuit</span>
+      <span class="brand__name"><span class="sw sw-p">Peaceful</span><span class="sw sw-c">Chaotic</span> Pursuit</span>
     </a>
     <nav class="nav__links" aria-label="Primary">
       <a href="#news" data-goto="news" data-rot>Cool news</a>
@@ -135,18 +128,22 @@
       </button>
       <a class="btn btn--small btn--dark magnetic" href="#about" data-goto="about"><span>Meet me</span></a>
     </div>
-    <svg class="nav__ring" aria-hidden="true" preserveAspectRatio="none">
+    <!-- One continuous rainbow edge around the whole notch, fillets included (path drawn by main.js) -->
+    <svg class="nav__edge" aria-hidden="true">
       <defs>
-        <linearGradient id="navRingGrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stop-color="#f74a20"/>
-          <stop offset=".55" stop-color="#ff6d34"/>
-          <stop offset="1" stop-color="#ff839b"/>
+        <linearGradient id="navEdgeGrad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="700" y2="0" spreadMethod="repeat">
+          <stop offset="0" stop-color="#ff4f8b"/>
+          <stop offset=".16" stop-color="#ff7a2f"/>
+          <stop offset=".32" stop-color="#ffc93c"/>
+          <stop offset=".48" stop-color="#7ee04a"/>
+          <stop offset=".64" stop-color="#3ec7ff"/>
+          <stop offset=".8" stop-color="#9a5cff"/>
+          <stop offset="1" stop-color="#ff4f8b"/>
+          <animateTransform attributeName="gradientTransform" type="translate" from="0 0" to="700 0" dur="7s" repeatCount="indefinite"/>
         </linearGradient>
       </defs>
-      <path class="nav__ring-track"/>
-      <path class="nav__ring-glow" pathLength="1"/>
-      <path class="nav__ring-fill" pathLength="1"/>
-      <circle class="nav__ring-head" r="3.5"/>
+      <path class="nav__edge-glow"/>
+      <path class="nav__edge-line"/>
     </svg>
   </header>
 
@@ -182,21 +179,22 @@
       <div class="panel__inner">
         <div class="panel__content hero">
           <p class="pill hero__pill"><span class="pill__dot"></span>Welcome aboard</p>
-          <h1 class="hero__title" data-split>Peaceful <em>Pursuit.</em></h1>
+          <h1 class="hero__title" data-split><span class="sw sw-p">Peaceful</span><span class="sw sw-c">Chaotic</span> <em>Pursuit.</em></h1>
           <p class="hero__lede">I welcome you to my tiny little world. Here’s what’s on the agenda today:</p>
           <ol class="agenda">
             <li class="agenda__item">
               <a class="agenda__link" href="#news" data-goto="news">
                 <span class="agenda__num">01</span>
-                <span class="agenda__body"><b>Cool news</b><small>Models, Claude updates, free tools, projects and repos — one spec sheet each</small></span>
+                <span class="agenda__body"><b>Cool news</b><small>Cool things people are building with AI: open models, Claude, free tools and the week’s top repos</small></span>
                 <span class="agenda__go" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
               </a>
               <span class="agenda__chips">
-                <button type="button" data-goto="news" data-news-cat="models">Models</button>
+                <button type="button" data-goto="news" data-news-cat="models">Open Source AI</button>
                 <button type="button" data-goto="news" data-news-cat="claude">Claude</button>
+                <button type="button" data-goto="news" data-news-cat="projects">AI Projects</button>
                 <button type="button" data-goto="news" data-news-cat="tools">Tools</button>
-                <button type="button" data-goto="news" data-news-cat="projects">Projects</button>
-                <button type="button" data-goto="news" data-news-cat="repos">Repos</button>
+                <button type="button" data-goto="news" data-news-cat="repos">Top Repos</button>
+                <button type="button" data-goto="news" data-news-cat="general">General</button>
               </span>
             </li>
             <li class="agenda__item">
@@ -238,14 +236,15 @@
           <h2 class="sec-title">Fresh from the <em>feed</em>.</h2>
           <div class="news__bar">
             <div class="seg news__tabs" role="tablist" aria-label="News topic">
-              <button type="button" role="tab" aria-selected="true" data-cat="models">Models</button>
+              <button type="button" role="tab" aria-selected="true" data-cat="models">Open Source AI</button>
               <button type="button" role="tab" aria-selected="false" data-cat="claude">Claude</button>
+              <button type="button" role="tab" aria-selected="false" data-cat="projects">AI Projects</button>
               <button type="button" role="tab" aria-selected="false" data-cat="tools">Tools</button>
-              <button type="button" role="tab" aria-selected="false" data-cat="projects">Projects</button>
-              <button type="button" role="tab" aria-selected="false" data-cat="repos">Repos</button>
+              <button type="button" role="tab" aria-selected="false" data-cat="repos">Top Repos</button>
+              <button type="button" role="tab" aria-selected="false" data-cat="general">General</button>
             </div>
             <span class="news__status-group">
-              <p class="news__note"><i aria-hidden="true"></i><span data-news-status>Sample stories · the live feed is coming soon</span></p>
+              <p class="news__note"><i aria-hidden="true"></i><span data-news-status>Loading the feed…</span></p>
               <button class="news__refresh" type="button" data-news-refresh>
                 <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 <span data-news-refresh-label>Refresh</span>
@@ -285,15 +284,19 @@
           <header class="sec-head"><span class="sec-num">03</span><span class="sec-rule"></span><span class="sec-label">About me</span></header>
           <h2 class="sec-title">The person behind the <em>plane</em>.</h2>
           <article class="card about">
-            <div class="about__top">
-              <div class="avatar"><img src="assets/img/portrait-avatar.webp" alt="Portrait of Hrithik Lega" width="192" height="192" decoding="async"></div>
-              <div>
-                <p class="about__name">Hrithik Lega</p>
-                <p class="about__role">AI Developer · Melbourne · <span id="clock">--:--</span></p>
+            <div class="about__id">
+              <div class="about__top">
+                <div class="avatar"><img src="assets/img/portrait-avatar.webp" alt="Portrait of Hrithik Lega" width="192" height="192" decoding="async"></div>
+                <div>
+                  <p class="about__name">Hrithik Lega</p>
+                  <p class="about__role">AI Developer · Melbourne</p>
+                  <p class="about__role"><span id="clock">--:--</span></p>
+                </div>
               </div>
             </div>
-            <p>I’m an AI Developer at Cario, a freight-management software company in Melbourne. I build AI agents, browser automation and integrations that take repetitive logistics work off people’s desks.</p>
-            <p>Before that I worked in customer onboarding, data visualisation and UI design. I studied computer science at GITAM in Hyderabad and data analytics at Deakin University. Outside work it’s badminton, PC games, photography and websites like this one.</p>
+            <div class="about__bio">
+              <p>I’m an AI Developer at Cario in Melbourne, building AI agents, browser automation and integrations that take repetitive freight work off people’s desks. Before that: customer onboarding, data visualisation and UI design, with computer science at GITAM and data analytics at Deakin. Off the clock it’s badminton, PC games, photography and websites like this one.</p>
+            </div>
             <div class="about__links">
               <button class="email-chip magnetic" id="copy-email" type="button" data-email="legahrithik@gmail.com">
                 <span class="email-chip__text">legahrithik@gmail.com</span>
@@ -413,7 +416,7 @@
             </details>
           </div>
           <footer class="footer">
-            <span>© <span id="year">2026</span> Hrithik Lega · Peaceful Pursuit. Designed &amp; built in Melbourne.</span>
+            <span>© <span id="year">2026</span> Hrithik Lega · Endless Pursuit. Designed &amp; built in Melbourne.</span>
             <button class="footer__top" type="button" data-goto="home">Take off again ↑</button>
           </footer>
         </div>
@@ -430,11 +433,12 @@
         <h2 class="sec-title" id="reader-title">Every <em>story</em>.</h2>
       </div>
       <div class="seg news__tabs" role="tablist" aria-label="News topic">
-        <button type="button" role="tab" aria-selected="true" data-cat="models">Models</button>
+        <button type="button" role="tab" aria-selected="true" data-cat="models">Open Source AI</button>
         <button type="button" role="tab" aria-selected="false" data-cat="claude">Claude</button>
+        <button type="button" role="tab" aria-selected="false" data-cat="projects">AI Projects</button>
         <button type="button" role="tab" aria-selected="false" data-cat="tools">Tools</button>
-        <button type="button" role="tab" aria-selected="false" data-cat="projects">Projects</button>
-        <button type="button" role="tab" aria-selected="false" data-cat="repos">Repos</button>
+        <button type="button" role="tab" aria-selected="false" data-cat="repos">Top Repos</button>
+        <button type="button" role="tab" aria-selected="false" data-cat="general">General</button>
       </div>
       <button class="reader__close" type="button" data-reader-close aria-label="Close the news"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
     </div>
@@ -567,27 +571,25 @@
   </template>
 
   <template id="sheet-site">
-    <p class="sheet-lede">Peaceful Pursuit is one page with no build step: plain HTML, CSS and JavaScript, a 3D scene for the plane, a canvas for the sky and Web Audio for sound. Here’s how the parts fit together.</p>
+    <p class="sheet-lede">Endless Pursuit is one page with no build step: plain HTML, CSS and JavaScript, a 3D scene for the plane, a canvas for the sky and Web Audio for sound. Here’s how the parts fit together.</p>
+    <h3 class="sheet-h">How the screen is stacked</h3>
     <figure class="site-figure">
-      <svg viewBox="0 0 720 300" role="img" aria-labelledby="stack-title">
-        <title id="stack-title">The four layers of the page, from the sky at the back to the page content at the front</title>
-        <g class="fig-layer fig-layer--1"><rect x="40" y="200" width="420" height="70" rx="18"/><text x="64" y="232">Sky canvas</text><text class="fig-sub" x="64" y="254">gradient.js · day mesh, night aurora</text></g>
-        <g class="fig-layer fig-layer--2"><rect x="80" y="140" width="420" height="70" rx="18"/><text x="104" y="172">3D scene</text><text class="fig-sub" x="104" y="194">plane.js + dogfight.js · Three.js</text></g>
-        <g class="fig-layer fig-layer--3"><rect x="120" y="80" width="420" height="70" rx="18"/><text x="144" y="112">Embers &amp; gunfire</text><text class="fig-sub" x="144" y="134">main.js + impacts.js · 2D canvases</text></g>
-        <g class="fig-layer fig-layer--4"><rect x="160" y="20" width="420" height="70" rx="18"/><text x="184" y="52">Page sections</text><text class="fig-sub" x="184" y="74">index.html + styles.css</text></g>
-        <g class="fig-note"><path d="M600 55h40v190h-160" fill="none"/><text x="610" y="150" transform="rotate(90 610 150)">front → back</text></g>
-      </svg>
-      <figcaption>Four layers stacked on one screen. Sound (sound.js) sits alongside: effects are synthesised live, music streams from three files.</figcaption>
+      <ol class="stack" aria-label="The four layers of the page, from the front to the back">
+        <li class="stack__layer stack__layer--4"><span class="stack__n">1</span><span class="stack__txt"><b>Page sections</b><small>index.html + styles.css</small></span><span class="stack__pos">Front</span></li>
+        <li class="stack__layer stack__layer--3"><span class="stack__n">2</span><span class="stack__txt"><b>Embers, gunfire &amp; flyers</b><small>main.js, impacts.js, flyers.js · 2D canvases</small></span></li>
+        <li class="stack__layer stack__layer--2"><span class="stack__n">3</span><span class="stack__txt"><b>3D scene</b><small>plane.js + dogfight.js · Three.js</small></span></li>
+        <li class="stack__layer stack__layer--1"><span class="stack__n">4</span><span class="stack__txt"><b>Sky canvas</b><small>gradient.js · morning band by day, aurora by night</small></span><span class="stack__pos">Back</span></li>
+      </ol>
+      <figcaption>Four layers on one screen. Sound (sound.js) runs alongside: effects are synthesised live, music streams from three files.</figcaption>
     </figure>
+    <h3 class="sheet-h">What one scroll does</h3>
     <figure class="site-figure">
-      <svg viewBox="0 0 720 150" role="img" aria-labelledby="flow-title">
-        <title id="flow-title">What happens when you scroll once</title>
-        <g class="fig-step"><rect x="10" y="30" width="150" height="90" rx="18"/><text x="30" y="68">1 · Scroll once</text><text class="fig-sub" x="30" y="92">a wheel click or swipe</text></g>
-        <g class="fig-step"><rect x="190" y="30" width="150" height="90" rx="18"/><text x="210" y="68">2 · Take off</text><text class="fig-sub" x="210" y="92">main.js starts a hop</text></g>
-        <g class="fig-step"><rect x="370" y="30" width="150" height="90" rx="18"/><text x="390" y="68">3 · Fly the route</text><text class="fig-sub" x="390" y="92">plane.js, 6.4 s</text></g>
-        <g class="fig-step"><rect x="550" y="30" width="160" height="90" rx="18"/><text x="570" y="68">4 · Land</text><text class="fig-sub" x="570" y="92">old page burns, new one lands</text></g>
-        <g class="fig-arrow"><path d="M162 75h24M342 75h24M522 75h24"/></g>
-      </svg>
+      <ol class="flow" aria-label="What happens when you scroll once">
+        <li class="flow__step"><span class="flow__n">1</span><b>Scroll</b><small>Two wheel clicks or a swipe</small></li>
+        <li class="flow__step"><span class="flow__n">2</span><b>Take off</b><small>main.js starts a hop</small></li>
+        <li class="flow__step"><span class="flow__n">3</span><b>Fly the route</b><small>plane.js, about 6 seconds</small></li>
+        <li class="flow__step flow__step--end"><span class="flow__n">4</span><b>Land</b><small>The old page burns, the new one lands</small></li>
+      </ol>
     </figure>
     <div class="site-facts">
       <div><span class="eyebrow">Built with</span><ul><li>HTML, CSS &amp; JavaScript</li><li>Three.js r128 (3D)</li><li>Lenis (smooth scroll)</li><li>Canvas 2D &amp; Web Audio</li><li>Claude Code (AI pair programmer)</li></ul></div>
@@ -611,13 +613,14 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.min.js"></script>
-  <script src="js/content.js?v=20260920p"></script>
-  <script src="js/main.js?v=20260920p"></script>
-  <script src="js/gradient.js?v=20260920p"></script>
-  <script src="js/sound.js?v=20260920p"></script>
-  <script src="js/impacts.js?v=20260920p"></script>
-  <script src="js/dogfight.js?v=20260920p"></script>
-  <script src="js/game.js?v=20260920p"></script>
-  <script src="js/plane.js?v=20260920p"></script>
+  <script src="js/content.js?v=20261005e"></script>
+  <script src="js/main.js?v=20261005e"></script>
+  <script src="js/gradient.js?v=20261005e"></script>
+  <script src="js/sound.js?v=20261005e"></script>
+  <script src="js/impacts.js?v=20261005e"></script>
+  <script src="js/dogfight.js?v=20261005e"></script>
+  <script src="js/game.js?v=20261005e"></script>
+  <script src="js/flyers.js?v=20261005e"></script>
+  <script src="js/plane.js?v=20261005e"></script>
 </body>
 </html>

@@ -2,13 +2,17 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { wordCount } from './schema.mjs';
+import { isPeopleOrCorporate } from './discover.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_PATH = path.join(__dirname, '..', '..', 'data', 'news.json');
 const PER_CATEGORY_CAP = 8;
+// Stories older than this drop off once their section has fresher ones (the site promises recent news)
+const MAX_AGE_DAYS = 21;
+export const SCHEMA = 3;
 const WPM = 200;
 
-const CATEGORIES = { models: 'Open Source Models', claude: 'Claude Updates', tools: 'Free AI Tools', projects: 'AI Projects', repos: 'GitHub Repos' };
+const CATEGORIES = { models: 'Open Source AI Models', claude: 'Claude', projects: 'Cool AI Projects & Workflows', tools: 'Free Tools', repos: 'Top GitHub Repos of the Week', general: 'General Projects' };
 
 function slugify(title) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'story';
@@ -19,7 +23,9 @@ export function loadStore() {
     return { version: 2, updated: new Date().toISOString(), categories: CATEGORIES, items: [] };
   }
   const store = JSON.parse(readFileSync(DATA_PATH, 'utf8'));
-  store.categories = CATEGORIES; // always the current 5 topics, regardless of what an older file had
+  store.categories = CATEGORIES; // always the current sections, regardless of what an older file had
+  // people-moves / corporate items are never shown, whatever an older run wrote
+  store.items = (store.items || []).filter(it => !isPeopleOrCorporate(it.title || ''));
   return store;
 }
 
@@ -38,8 +44,14 @@ export function toItem({ category, article, primary, existing, takenIds }) {
   return {
     id,
     category,
+    schema: SCHEMA,
+    kind: primary.kind || undefined,
     title: article.title.trim(),
+    summary: article.summary,
+    domain: article.domain,
     topicTag: article.topicTag,
+    modelUsed: article.modelUsed,
+    builtBy: article.builtBy,
     endUser: article.endUser,
     toolsUsed: article.toolsUsed,
     costStructure: article.costStructure,
@@ -51,8 +63,10 @@ export function toItem({ category, article, primary, existing, takenIds }) {
     hardwareRequirements: article.hardwareRequirements,
     integrations: article.integrations,
     subscriptionsRequired: article.subscriptionsRequired,
+    tips: article.tips,
     readingTime: Math.max(1, Math.round(wordCount(article) / WPM)),
-    url: primary.link,
+    url: primary.link,                                      // the story itself — the card's "Original article" link
+    discussion: primary.discussion,
     source: { name: primary.sourceName, url: primary.sourceUrl },
     author: primary.author || primary.sourceName,
     published: (primary.published || new Date().toISOString()).slice(0, 10),
@@ -70,7 +84,9 @@ export function toItem({ category, article, primary, existing, takenIds }) {
 export function mergeItems(store, category, newItems) {
   if (!newItems.length) return store;
   const others = store.items.filter(it => it.category !== category);
-  const previousReal = store.items.filter(it => it.category === category && !it.sample);
+  // older-format items (before the current sections/template) and samples give way to new stories
+  const cutoff = new Date(Date.now() - MAX_AGE_DAYS * 86400000).toISOString().slice(0, 10);
+  const previousReal = store.items.filter(it => it.category === category && !it.sample && it.schema === SCHEMA && it.published >= cutoff);
   const byId = new Map(previousReal.map(it => [it.id, it]));
   newItems.forEach(it => byId.set(it.id, it));
   const merged = [...byId.values()]
