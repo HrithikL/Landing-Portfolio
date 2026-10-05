@@ -510,7 +510,8 @@
   // The "Workflow" steps render as a flow of numbered chips joined by arrows that wraps to the panel's
   // width, so every step stays at reading size however many there are.
   const ARROW_R = '<svg class="wf__arrow" viewBox="0 0 20 12" aria-hidden="true"><path d="M1 6h16M12 1l5 5-5 5"/></svg>';
-  const workflowDiagram = steps => `<ol class="wf">${steps.map((x, i) => `<li class="wf__step"><span class="wf__n">${i + 1}</span>${esc(x)}</li>`).join(ARROW_R)}</ol>`;
+  // the arrow belongs to the step it leaves, so a wrapped line never starts with an orphan arrow
+  const workflowDiagram = steps => `<ol class="wf">${steps.map((x, i) => `<li class="wf__item"><span class="wf__step"><span class="wf__n">${i + 1}</span>${esc(x)}</span>${i < steps.length - 1 ? ARROW_R : ''}</li>`).join('')}</ol>`;
 
   // The article is laid out as a dashboard: a summary rail (the use-case art, the lede, the key facts and
   // the link out) beside a grid of spec cards, so most stories fit on one screen with little scrolling.

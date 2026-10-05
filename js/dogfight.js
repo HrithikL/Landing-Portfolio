@@ -385,45 +385,48 @@
     const MIX = { biplane: 5, mono: 4, tri: 4, twin: 3 };
     const actors = Object.entries(MIX).flatMap(([type, n]) => Array.from({ length: n }, () => buildActor(type)));
 
-    // ---------- Occlusion: background planes vanish behind the page's text blocks ----------
-    // Each visible block of the live section (heading, cards, tile grid…) gets an invisible quad, pinned to
-    // the camera exactly over its on-screen rectangle, that writes 1 into the stencil buffer before anything
-    // else draws. Background planes only draw where the stencil is still 0, so a plane is cut off cleanly at
-    // the block's edge and reappears the instant it flies back into open sky — no ghosting, no fade.
-    // (Our own plane never tests the stencil; mini-game enemies and jump-battle foes skip it too, since the
-    // page is empty while they fly.)
-    const MASKS = 14;
+    // ---------- Occlusion: background planes vanish behind the page's text and boxes ----------
+    // main.js keeps the map of what covers the sky (window.Occluders: every filled box whole, bare text word
+    // by word). Each of those rectangles becomes an invisible quad, pinned to the camera exactly over it, that
+    // writes 1 into the stencil buffer before anything else draws; background planes only draw where the
+    // stencil is still 0. So a plane is cut off precisely at a word or a card's edge and shows through the
+    // gaps between them — no ghosting, no fade, no lag (rebuilt every frame, all quads in one draw call).
+    // Our own plane never tests the stencil; mini-game enemies and jump-battle foes skip it too.
+    const MAX_Q = 480;
     if (!camera.parent) scene.add(camera);
+    const maskGeo = new THREE.BufferGeometry();
+    const maskPos = new Float32Array(MAX_Q * 4 * 3);
+    const maskIdx = new Uint16Array(MAX_Q * 6);
+    for (let q = 0; q < MAX_Q; q++) maskIdx.set([q * 4, q * 4 + 1, q * 4 + 2, q * 4, q * 4 + 2, q * 4 + 3], q * 6);
+    maskGeo.setAttribute('position', new THREE.BufferAttribute(maskPos, 3).setUsage(THREE.DynamicDrawUsage));
+    maskGeo.setIndex(new THREE.BufferAttribute(maskIdx, 1));
+    maskGeo.setDrawRange(0, 0);
     const maskMat = new THREE.MeshBasicMaterial({
-      colorWrite: false, depthWrite: false, depthTest: false,
+      colorWrite: false, depthWrite: false, depthTest: false, side: THREE.DoubleSide,
       stencilWrite: true, stencilRef: 1, stencilFunc: THREE.AlwaysStencilFunc,
       stencilFail: THREE.ReplaceStencilOp, stencilZFail: THREE.ReplaceStencilOp, stencilZPass: THREE.ReplaceStencilOp,
     });
-    const maskQuads = Array.from({ length: MASKS }, () => {
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), maskMat);
-      m.renderOrder = -1e6;
-      m.frustumCulled = false;
-      m.visible = false;
-      camera.add(m);
-      return m;
-    });
-    const MASK_SEL = '.panel.is-live .panel__content > *';
+    const maskMesh = new THREE.Mesh(maskGeo, maskMat);
+    maskMesh.renderOrder = -1e6;
+    maskMesh.frustumCulled = false;
+    camera.add(maskMesh);
+    let maskList = null;
     function placeMasks() {
-      const root = document.documentElement;
-      const pageOff = root.classList.contains('is-game') || root.classList.contains('is-reading');
-      const els = pageOff ? [] : document.querySelectorAll(MASK_SEL);
+      const list = window.Occluders ? window.Occluders.get() : [];
+      if (list === maskList) return;                       // same map as last frame: nothing to rebuild
+      maskList = list;
       const d = camera.near * 4, h = 2 * d * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), w = h * camera.aspect;
-      let i = 0;
-      for (const el of els) {
-        if (i >= MASKS) break;
-        const r = el.getBoundingClientRect();
-        if (r.width < 4 || r.height < 4 || r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
-        const m = maskQuads[i++];
-        m.visible = true;
-        m.position.set(((r.left + r.width / 2) / innerWidth * 2 - 1) * w / 2, (1 - (r.top + r.height / 2) / innerHeight * 2) * h / 2, -d);
-        m.scale.set(r.width / innerWidth * w, r.height / innerHeight * h, 1);
+      const X = px => (px / innerWidth * 2 - 1) * w / 2, Y = py => (1 - py / innerHeight * 2) * h / 2;
+      const n = Math.min(MAX_Q, list.length);
+      for (let q = 0; q < n; q++) {
+        const r = list[q], x0 = X(r.left), x1 = X(r.right), y0 = Y(r.top), y1 = Y(r.bottom), o = q * 12;
+        maskPos[o] = x0; maskPos[o + 1] = y0; maskPos[o + 2] = -d;
+        maskPos[o + 3] = x1; maskPos[o + 4] = y0; maskPos[o + 5] = -d;
+        maskPos[o + 6] = x1; maskPos[o + 7] = y1; maskPos[o + 8] = -d;
+        maskPos[o + 9] = x0; maskPos[o + 10] = y1; maskPos[o + 11] = -d;
       }
-      for (; i < MASKS; i++) maskQuads[i].visible = false;
+      maskGeo.attributes.position.needsUpdate = true;
+      maskGeo.setDrawRange(0, n * 6);
     }
     // every material of a background plane draws only outside the masks
     const maskable = a => [...Object.values(a.mats), a.flame.material, a.flash.material, ...(a.navLights || []).map(n => n.material).filter(Boolean)];
@@ -1130,7 +1133,6 @@
       return (last = bag.pop());
     }
 
-    let boxTimer = 0;
     // play: { playing, G } while the mini-game runs (G = our gun position)
     function update(dt, settled, section, play) {
       const playing = !!(play && play.playing);
@@ -1138,8 +1140,7 @@
       arena.lift = (play && play.lift) || 0;
       if (!playing) arena.on = false;
       if (play && play.busy) settled = false;       // no background fights around the mini-game
-      boxTimer -= dt;
-      if (boxTimer <= 0) { boxTimer = .05; placeMasks(); }
+      placeMasks();
       if (current) {
         if (!settled) current.abort = true;              // our plane is leaving: hurry everyone off stage
         if (peaceful() && !current.peace && !current.abort) current.abort = true;   // switched to peaceful mid-fight

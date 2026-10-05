@@ -1273,6 +1273,7 @@
   // New text is split into letters for the burner, and the page re-measures (a taller section may now scroll)
   Flight.refresh = el => {
     if (!el) return;
+    if (window.Occluders) window.Occluders.refresh();         // new content = new shapes for the planes to hide behind
     charify(el);
     const i = sections.findIndex(sec => sec.contains(el));
     if (i >= 0) stage.markDirty(i);
@@ -1317,6 +1318,68 @@
     if (Mode.peaceful) { Mode.set('chaotic'); setTimeout(invite, 300); } else invite();
     if (window.Sfx && window.Sfx.ui) window.Sfx.ui();
   }));
+
+  // ---------- Occluders: exactly where the page covers the sky ----------
+  // The background planes (js/flyers.js, js/dogfight.js) hide behind the page's text and solid boxes and show
+  // through everywhere else, gaps between words and lines included. This is the shared map of what covers
+  // the sky: every box with a fill of its own (cards, tiles, pills, buttons, rows) counts whole; bare text
+  // counts word by word, as the tight boxes of the glyph runs. Recomputed only when the page moved (cached
+  // per frame and keyed on where the live sections sit), so the clip tracks the text with no lag.
+  const Occluders = window.Occluders = (() => {
+    const solid = new WeakMap();
+    const isSolid = el => {
+      let v = solid.get(el);
+      if (v === undefined) {
+        const cs = getComputedStyle(el);
+        v = !/^(rgba\(0, 0, 0, 0\)|transparent)$/.test(cs.backgroundColor) || cs.backgroundImage !== 'none'
+          || /^(IMG|SVG|CANVAS|VIDEO|svg)$/.test(el.tagName);
+        solid.set(el, v);
+      }
+      return v;
+    };
+    const range = document.createRange();
+    const MAX = 480;
+    let list = [], key = '', at = -1;
+    const add = (out, r) => { if (r.width > 1 && r.height > 1 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth) out.push(r); };
+    function walk(el, out) {
+      for (let n = el.firstChild; n && out.length < MAX; n = n.nextSibling) {
+        if (n.nodeType === 3) {
+          const t = n.nodeValue;
+          if (!t || !t.trim()) continue;
+          const re = /\S+/g;
+          let m;
+          while ((m = re.exec(t)) && out.length < MAX) {
+            range.setStart(n, m.index);
+            range.setEnd(n, m.index + m[0].length);
+            for (const r of range.getClientRects()) add(out, r);
+          }
+        } else if (n.nodeType === 1) {
+          if (!n.getClientRects().length) continue;              // display:none, hidden rows
+          if (isSolid(n)) add(out, n.getBoundingClientRect());
+          else walk(n, out);
+        }
+      }
+    }
+    function get() {
+      const now = performance.now();
+      if (now - at < 6) return list;                            // same frame: reuse
+      at = now;
+      const root = document.documentElement;
+      const pageOff = root.classList.contains('is-game') || root.classList.contains('is-reading');
+      const live = pageOff ? [] : $$('.panel.is-live .panel__content');
+      const k = live.map(c => { const r = c.getBoundingClientRect(); return `${r.left | 0},${r.top | 0},${r.width | 0},${r.height | 0}`; }).join('|')
+        + `/${innerWidth}x${innerHeight}/${root.dataset.theme}`;
+      if (k === key) return list;
+      key = k;
+      const out = [];
+      live.forEach(c => walk(c, out));
+      $$('.nav, .hud, .rail, .podium-hint, .nav-score').forEach(el => { if (el.getClientRects().length) add(out, el.getBoundingClientRect()); });
+      return (list = out);
+    }
+    // a tile's hover styles can change what is solid: forget the cache when the theme flips
+    addEventListener('themechange', () => { key = ''; });
+    return { get, refresh() { key = ''; } };
+  })();
 
   // Inspection hook for development only: open the page with ?debug
   if (/[?&]debug\b/.test(location.search)) {

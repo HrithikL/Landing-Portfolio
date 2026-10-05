@@ -2,9 +2,10 @@
    Ambient flyers: every so often a small replica of the site's own biplane (orange cowling and spinner,
    charcoal fuselage with orange trim, red-pink wings, silver exhausts) crosses the screen on a smooth,
    near-level line with a gentle bob and a spinning prop.
-   They only ever fly BEHIND the information sections (#flyers-back, under the page): wherever one of the
-   section's blocks is (heading, card, tile grid…) the plane is clipped out completely, and it reappears the
-   moment it is back in open sky — the same rule the 3D background planes follow (dogfight.js placeMasks).
+   They fly BEHIND everything: under the 3D scene (so the hero plane always covers them) and under the page,
+   erased exactly where the page's text and solid boxes are (window.Occluders, main.js) — so they vanish
+   behind words and cards and show through the gaps — the same rule the 3D background planes follow
+   (dogfight.js placeMasks).
    Planes never overlap each other: each one reserves its own lane of sky for its whole crossing, and a
    new plane only launches into a lane that is clear. Nothing steers or stalls, so the motion stays smooth.
    The airframe is painted once to an offscreen sprite; each frame is just a drawImage plus the prop.
@@ -93,18 +94,10 @@
     return c;
   })();
 
-  // ---------- Where the sections are (for the behind layer's clip) ----------
-  const SEL = '.panel.is-live .panel__content > *, .nav, .hud, .rail, .podium-hint, .nav-score';
-  let rects = [], rectsAt = 0;
-  function readRects(now) {
-    if (now - rectsAt < 120) return;
-    rectsAt = now;
-    rects = [];
-    document.querySelectorAll(SEL).forEach(el => {
-      const r = el.getBoundingClientRect();
-      if (r.width > 8 && r.height > 8 && r.bottom > 0 && r.top < H && r.right > 0 && r.left < W) rects.push([r.left - 6, r.top - 6, r.width + 12, r.height + 12]);
-    });
-  }
+  // ---------- What covers them ----------
+  // main.js keeps the map of the page's text and solid boxes (window.Occluders): planes are erased exactly
+  // there each frame, so they vanish behind words and boxes and show through the gaps between them.
+  const occluders = () => (window.Occluders ? window.Occluders.get() : []);
 
   // ---------- The flyers ----------
   const planes = [];
@@ -154,6 +147,9 @@
   let last = performance.now();
   function frame(now) {
     requestAnimationFrame(frame);
+    tick(now);
+  }
+  function tick(now) {
     const dt = clamp((now - last) / 1000, 0, .05);
     last = now;
     const off = root.classList.contains('is-game') || root.classList.contains('is-overlay') || document.hidden;
@@ -165,15 +161,7 @@
     if (now > nextAt && planes.length < MAX) { spawn(); nextAt = now + rnd(5000, 10000); }
     layers.forEach(({ ctx }) => ctx.clearRect(0, 0, W, H));
     if (!planes.length) return;
-    readRects(now);
-
-    // the behind layer is clipped to "everywhere except the sections"
     const bctx = layers[0].ctx;
-    bctx.save();
-    bctx.beginPath();
-    bctx.rect(0, 0, W, H);
-    rects.forEach(r => bctx.rect(r[0], r[1], r[2], r[3]));
-    bctx.clip('evenodd');
 
     for (let i = planes.length - 1; i >= 0; i--) {
       const p = planes[i];
@@ -189,8 +177,12 @@
       drawPlane(layers[p.layer].ctx, p);
       if (k >= 1 || p.life > 60) planes.splice(i, 1);
     }
-    bctx.restore();
+    // cut the page's text and boxes out of the layer
+    bctx.globalCompositeOperation = 'destination-out';
+    bctx.fillStyle = '#000';
+    for (const r of occluders()) bctx.fillRect(r.left, r.top, r.width, r.height);
+    bctx.globalCompositeOperation = 'source-over';
   }
   requestAnimationFrame(frame);
-  if (location.search.includes('debug')) window.__flyers = { planes, spawn, sprite };
+  if (location.search.includes('debug')) window.__flyers = { planes, spawn, sprite, step: () => tick(performance.now()) };
 })();
