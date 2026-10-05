@@ -6,7 +6,8 @@
    Four airframes (biplane, monoplane, triplane and a twin-engine fighter) and a shelf of liveries mean
    no two planes in the sky look alike; sides, heights and timing are random too, and the
    same encounter never plays twice in a row.
-   Everything is drawn in the WebGL layer (behind the content) and hazed towards the page colour.
+   Everything is drawn in the WebGL layer (behind the content) and hazed towards the page colour; behind the
+   page's text blocks a stencil mask hides them outright (placeMasks).
    plane.js calls Dogfight.create(api) and then update() every frame.
    ========================================================= */
 (() => {
@@ -384,6 +385,56 @@
     const MIX = { biplane: 5, mono: 4, tri: 4, twin: 3 };
     const actors = Object.entries(MIX).flatMap(([type, n]) => Array.from({ length: n }, () => buildActor(type)));
 
+    // ---------- Occlusion: background planes vanish behind the page's text blocks ----------
+    // Each visible block of the live section (heading, cards, tile grid…) gets an invisible quad, pinned to
+    // the camera exactly over its on-screen rectangle, that writes 1 into the stencil buffer before anything
+    // else draws. Background planes only draw where the stencil is still 0, so a plane is cut off cleanly at
+    // the block's edge and reappears the instant it flies back into open sky — no ghosting, no fade.
+    // (Our own plane never tests the stencil; mini-game enemies and jump-battle foes skip it too, since the
+    // page is empty while they fly.)
+    const MASKS = 14;
+    if (!camera.parent) scene.add(camera);
+    const maskMat = new THREE.MeshBasicMaterial({
+      colorWrite: false, depthWrite: false, depthTest: false,
+      stencilWrite: true, stencilRef: 1, stencilFunc: THREE.AlwaysStencilFunc,
+      stencilFail: THREE.ReplaceStencilOp, stencilZFail: THREE.ReplaceStencilOp, stencilZPass: THREE.ReplaceStencilOp,
+    });
+    const maskQuads = Array.from({ length: MASKS }, () => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), maskMat);
+      m.renderOrder = -1e6;
+      m.frustumCulled = false;
+      m.visible = false;
+      camera.add(m);
+      return m;
+    });
+    const MASK_SEL = '.panel.is-live .panel__content > *';
+    function placeMasks() {
+      const root = document.documentElement;
+      const pageOff = root.classList.contains('is-game') || root.classList.contains('is-reading');
+      const els = pageOff ? [] : document.querySelectorAll(MASK_SEL);
+      const d = camera.near * 4, h = 2 * d * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), w = h * camera.aspect;
+      let i = 0;
+      for (const el of els) {
+        if (i >= MASKS) break;
+        const r = el.getBoundingClientRect();
+        if (r.width < 4 || r.height < 4 || r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
+        const m = maskQuads[i++];
+        m.visible = true;
+        m.position.set(((r.left + r.width / 2) / innerWidth * 2 - 1) * w / 2, (1 - (r.top + r.height / 2) / innerHeight * 2) * h / 2, -d);
+        m.scale.set(r.width / innerWidth * w, r.height / innerHeight * h, 1);
+      }
+      for (; i < MASKS; i++) maskQuads[i].visible = false;
+    }
+    // every material of a background plane draws only outside the masks
+    const maskable = a => [...Object.values(a.mats), a.flame.material, a.flash.material, ...(a.navLights || []).map(n => n.material).filter(Boolean)];
+    actors.forEach(a => maskable(a).forEach(m => {
+      m.stencilRef = 1;
+      m.stencilFunc = THREE.NotEqualStencilFunc;
+      m.stencilFail = m.stencilZFail = m.stencilZPass = THREE.KeepStencilOp;
+      m.stencilWrite = true;
+    }));
+    const setMasked = (a, on) => { if (a.masked !== on) { a.masked = on; maskable(a).forEach(m => { m.stencilWrite = on; }); } };
+
     // Distant planes fade towards the sky colour (beige by day, deep plum at night)
     const hazed = (hex, k) => col(hex).lerp(HAZE.copy(HAZE_DAY).lerp(HAZE_NIGHT, getNight()), k);
     function paint(a, liv, haze = .3) {
@@ -560,14 +611,11 @@
           spawnTrail(tailPoint(a, fB), a.mode === 'fall', a.world / getScale() * (a.mode === 'fall' ? 1.5 : 1), true);
         }
       }
-      // ghost out while passing behind the page content, so text stays readable (the jump battle and the dogfight
-      // have an empty page)
+      // behind the page's text blocks the stencil masks hide it outright (see placeMasks); foes and
+      // mini-game enemies fly over an empty page, so they are never masked
+      setMasked(a, !a.foe && !a.enemy);
+      if (a.fade < 1 && a.alive) setFade(a, Math.min(1, a.fade + dt * 4));
       fB.copy(a.pos).project(camera);
-      const sx = (fB.x + 1) / 2 * innerWidth, sy = (1 - fB.y) / 2 * innerHeight;
-      const pad = 36;
-      const behind = !a.foe && !a.enemy && !!contentBox && sx > contentBox.left - pad && sx < contentBox.right + pad && sy > contentBox.top - pad && sy < contentBox.bottom + pad;
-      const want = behind ? .1 : 1;
-      if (Math.abs(a.fade - want) > .005) setFade(a, a.fade + (want - a.fade) * Math.min(1, dt * 7));
       // leave the stage once seen and gone off screen (or after a safety timeout)
       if (Math.abs(fB.x) < 1.02 && Math.abs(fB.y) < 1.02) a.seen = true;
       if (!a.stay && ((a.seen && (Math.abs(fB.x) > 1.3 || fB.y < -1.25 || fB.y > 1.4)) || a.age > 16)) hide(a);
@@ -1082,8 +1130,7 @@
       return (last = bag.pop());
     }
 
-    const blocks = [...document.querySelectorAll('.panel__content')];
-    let contentBox = null, boxTimer = 0;
+    let boxTimer = 0;
     // play: { playing, G } while the mini-game runs (G = our gun position)
     function update(dt, settled, section, play) {
       const playing = !!(play && play.playing);
@@ -1092,11 +1139,7 @@
       if (!playing) arena.on = false;
       if (play && play.busy) settled = false;       // no background fights around the mini-game
       boxTimer -= dt;
-      if (boxTimer <= 0) {
-        boxTimer = .25;
-        const el = blocks[section];
-        contentBox = el ? el.getBoundingClientRect() : null;
-      }
+      if (boxTimer <= 0) { boxTimer = .05; placeMasks(); }
       if (current) {
         if (!settled) current.abort = true;              // our plane is leaving: hurry everyone off stage
         if (peaceful() && !current.peace && !current.abort) current.abort = true;   // switched to peaceful mid-fight

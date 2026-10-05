@@ -50,7 +50,16 @@
     const KEY = 'hl-mode';
     let value = 'chaotic';
     try { if (localStorage.getItem(KEY) === 'peaceful') value = 'peaceful'; } catch (e) { /* storage blocked */ }
+    // The site is Endless Pursuit; its in-page name follows the mode, Peaceful or Chaotic Pursuit
+    // (the visible copies swap in CSS via .sw-p / .sw-c, this keeps the tab title and labels in step).
+    const rename = v => {
+      const name = `${v === 'chaotic' ? 'Chaotic' : 'Peaceful'} Pursuit`;
+      document.title = `${name} · Endless Pursuit`;
+      const brand = document.querySelector('.brand');
+      if (brand) brand.setAttribute('aria-label', `${name} — back to the start`);
+    };
     document.documentElement.dataset.mode = value;
+    rename(value);
     return {
       get value() { return value; },
       get peaceful() { return value === 'peaceful'; },
@@ -59,6 +68,7 @@
         const changed = v !== value;
         value = v;
         document.documentElement.dataset.mode = v;
+        rename(v);
         try { localStorage.setItem(KEY, v); } catch (e) { /* storage blocked */ }
         dispatchEvent(new CustomEvent('modechange', { detail: { mode: v, changed } }));
       },
@@ -251,30 +261,26 @@
   // scrollbar, a resize), the plane settles itself: past 80% it lands on the next section, under 20% it
   // goes back, in between it carries on the way it was going.
   sticky = lenis && (() => {
-    // Take-off asks for two or three *distinct* scroll actions, never one long fling. The input is cut
-    // into gestures — a gesture ends when the wheel or the finger goes quiet, or when it turns around —
-    // and a gesture is worth a limited number of actions however far it runs on. A mouse arrives as a few
-    // big deltas (its detents), so one spin may spend all three; a trackpad or a thumb streams small ones,
-    // and the whole flick, inertia tail and all, is worth exactly one.
+    // Take-off asks for two *distinct* scroll actions, never one long fling. The input is cut into
+    // gestures — a gesture ends when the wheel or the finger goes quiet, or when it turns around —
+    // and each gesture can freely earn up to NEED actions based on how far it travels, whether that
+    // travel arrives as a mouse's discrete clicks or a trackpad's smooth stream. (An earlier version
+    // tried to tell the two apart by event spacing and only credited a "streamed" gesture one action
+    // — but plenty of real mice report clicks close enough together to read as a stream too, so a
+    // deliberate multi-click spin often only counted a third of the way and never took off. Simpler
+    // and more reliable: just measure distance.)
     const QUIET = { wheel: 140, touch: 110 };        // ms of stillness that ends a gesture
     const STEP = { wheel: 70, touch: 46 };           // px of travel that earns one action (a wheel click is ~90)
-    const NEED = { wheel: 3, touch: 2 };             // actions that take off
-    const COARSE = 40;                               // px per event: above it the wheel is throwing detents…
-    const SPARSE = 25;                               // …and ms per event: a wheel's clicks are at least that far
-                                                     // apart, while a pad streams several times faster. A violent
-                                                     // flick can fake the size of a detent, but never the spacing.
-    const SPEND = 3;                                 // actions one gesture of detents may spend; a streamed one spends 1
+    const NEED = { wheel: 2, touch: 2 };             // actions that take off
     const HOLD = 1000, LEAK = 1.2;                   // the count waits a second after the last input, then drains
     // Information tiles hold the page still: reading one should never fly you off the section, so the
     // wheel over a tile earns no throttle at all (whatever scrolls *inside* it still scrolls). One
     // selector is the whole contract — put data-hold-scroll on anything new that should read the same way.
     const TILES = '[data-hold-scroll], .agenda__item, .news-card, .res-card, .tile, .credit-acc';
     const overTile = t => !!(t && t.closest && t.closest(TILES));
-    const names = $$('.rail button').map(b => b.getAttribute('aria-label'));
     const clips = contents.map(c => c.parentElement);
-    const hintEl = $('.fly-hint'), hintText = $('.fly-hint__text');
     let energy = 0, dir = 0, gesture = null, lastInput = 0;
-    let strain = 0, strainEl = null, strainStr = '', hintStr = '', hintOn = false, hintP = -1;
+    let strain = 0, strainEl = null, strainStr = '';
     let moveY = currentScroll(), moveT = performance.now(), moveDir = 1;
     const isGame = () => document.documentElement.classList.contains('is-game') || document.documentElement.classList.contains('is-overlay');
     const busy = () => flying || jump.active || pendingGo >= 0;
@@ -328,16 +334,15 @@
       // the scroll that carried a long section to its end doesn't count towards take-off
       if (gesture.inside) return null;
       // …and neither does a scroll spent reading a tile: spend the gesture out so letting go is the reset
-      if (held) { energy = 0; gesture.spent = SPEND; return null; }
+      if (held) { energy = 0; gesture.spent = NEED[kind]; return null; }
       gesture.px += Math.abs(dy);
       gesture.events++;
-      const n = gesture.events;
-      const detents = n > 1 && gesture.px / n >= COARSE && (now - gesture.t0) / (n - 1) >= SPARSE;
-      const allow = detents ? SPEND : 1;
-      while (gesture.spent < allow && gesture.px >= STEP[kind] * (gesture.spent + 1)) {
+      // however the input arrives — a mouse's discrete clicks or a trackpad's smooth stream — the same
+      // gesture can earn every action it needs, purely by distance travelled.
+      while (gesture.spent < NEED[kind] && gesture.px >= STEP[kind] * (gesture.spent + 1)) {
         gesture.spent++;
         // one gesture only ever flies one hop: spending out stops it charging again on the far side
-        if (charge(d, 1 / NEED[kind], i)) { gesture.spent = SPEND; break; }
+        if (charge(d, 1 / NEED[kind], i)) { gesture.spent = NEED[kind]; break; }
       }
       return null;
     }
@@ -414,19 +419,8 @@
       strainEl = el;
       const str = strain ? `translate3d(0,${strain.toFixed(1)}px,0)` : '';
       if (el && str !== strainStr) { strainStr = str; el.style.transform = str; }
-
-      // "Keep scrolling to fly to …" with a gauge that fills
-      const on = energy > .02 && !busy() && at >= 0;
-      if (on !== hintOn) { hintOn = on; hintEl.classList.toggle('is-on', on); }
-      if (on) {
-        const next = clamp(at + dir, 0, ids.length - 1);
-        const text = `Keep scrolling${dir < 0 ? ' up' : ''} to fly to ${names[next]}`;
-        if (text !== hintStr) { hintStr = text; hintText.textContent = text; hintEl.classList.toggle('is-up', dir < 0); }
-        const p = Math.round(energy * 200) / 200;
-        if (p !== hintP) { hintP = p; hintEl.style.setProperty('--p', p); }
-      }
     }
-    return { wheel, update };
+    return { wheel, update, debug: () => ({ energy, dir, gesture: gesture && { ...gesture }, lastInput }) };
   })();
   $$('[data-goto]').forEach(el => el.addEventListener('click', e => {
     e.preventDefault();
@@ -452,36 +446,8 @@
     const root = document.documentElement;
     const btn = $('.theme-toggle');
     const meta = $('meta[name="theme-color"]');
-    const stars = $('.bg__stars');
     let night = root.dataset.theme === 'night';
 
-    function drawStars() {
-      if (!stars || stars.dataset.ready) return;
-      stars.dataset.ready = '1';
-      $$('i', stars).forEach((layer, k) => {
-        const S = 900;
-        const c = document.createElement('canvas');
-        c.width = c.height = S;
-        const g = c.getContext('2d');
-        for (let i = 0; i < (k ? 70 : 240); i++) {
-          const x = Math.random() * S, y = Math.random() * S;
-          const r = k ? rnd(.8, 1.7) : rnd(.35, .9);
-          const tint = Math.random() < .25 ? '255,210,218' : Math.random() < .3 ? '255,228,217' : '255,246,234';
-          if (k) {
-            const glow = g.createRadialGradient(x, y, 0, x, y, r * 5);
-            glow.addColorStop(0, `rgba(${tint},.35)`);
-            glow.addColorStop(1, `rgba(${tint},0)`);
-            g.fillStyle = glow;
-            g.fillRect(x - r * 5, y - r * 5, r * 10, r * 10);
-          }
-          g.fillStyle = `rgba(${tint},${rnd(.45, 1)})`;
-          g.beginPath();
-          g.arc(x, y, r, 0, Math.PI * 2);
-          g.fill();
-        }
-        layer.style.backgroundImage = `url(${c.toDataURL()})`;
-      });
-    }
     function paint() {
       if (btn) {
         btn.setAttribute('aria-pressed', String(night));
@@ -489,7 +455,6 @@
         btn.title = night ? 'Day mode' : 'Night mode';
       }
       if (meta) meta.content = night ? '#17100d' : '#fdf0e0';
-      if (night) drawStars();
     }
     function apply(next) {
       night = next;
@@ -548,6 +513,28 @@
     };
   };
   const navBorder = navProp('--nav-border-progress');
+
+  // The notch's rainbow edge: one SVG path traced round the whole silhouette — the concave fillet at the top
+  // left, down, round the bottom corners, back up and out through the right fillet — so there is no seam
+  // anywhere. Its gradient repeats every nav-width and slides one period per loop (SMIL), so the colour flows
+  // continuously. Redrawn whenever the notch changes size.
+  (() => {
+    const svg = $('.nav__edge');
+    if (!svg || !nav) return;
+    const paths = $$('path', svg), grad = $('#navEdgeGrad'), slide = grad && $('animateTransform', grad);
+    const draw = () => {
+      const F = parseFloat(getComputedStyle(nav).getPropertyValue('--fillet')) || 24;
+      const w = nav.offsetWidth, h = nav.offsetHeight, R = Math.min(32, h / 2), x0 = F, x1 = F + w;
+      const d = `M0 0 A${F} ${F} 0 0 1 ${x0} ${F} L${x0} ${h - R} A${R} ${R} 0 0 0 ${x0 + R} ${h} `
+        + `L${x1 - R} ${h} A${R} ${R} 0 0 0 ${x1} ${h - R} L${x1} ${F} A${F} ${F} 0 0 1 ${x1 + F} 0`;
+      svg.setAttribute('viewBox', `0 0 ${w + 2 * F} ${h}`);
+      paths.forEach(p => p.setAttribute('d', d));
+      if (grad) grad.setAttribute('x2', w);
+      if (slide) slide.setAttribute('to', `${w} 0`);
+    };
+    draw();
+    if (window.ResizeObserver) new ResizeObserver(draw).observe(nav);
+  })();
   const navThrottle = navProp('--nav-throttle');
 
   // The nav's Experience button and the loader's mode cards are the same switch in two places: both go
@@ -1317,6 +1304,10 @@
   addEventListener('keydown', e => {
     if (e.key === 'Escape' && overlayOpts && overlayOpts.onEscape) { e.preventDefault(); overlayOpts.onEscape(); }
   });
+  // The nav stays above every panel; picking a section there folds the open panel away first
+  if (nav) nav.addEventListener('click', e => {
+    if (overlayOpts && overlayOpts.onEscape && e.target.closest('[data-goto]')) overlayOpts.onEscape();
+  }, true);
 
   // ---------- Home: "Dog fight" on the agenda ----------
   // It lives on the Home screen and only exists in Chaotic mode: switch to it if needed, then turn the plane north,
@@ -1329,7 +1320,7 @@
 
   // Inspection hook for development only: open the page with ?debug
   if (/[?&]debug\b/.test(location.search)) {
-    window.__main = { step: (ms = 16.7) => frame(lastT + ms), clock: () => lastT, stage, timeline, measure, lenis };
+    window.__main = { step: (ms = 16.7) => frame(lastT + ms), clock: () => lastT, stage, timeline, measure, lenis, sticky };
   }
 
   // ---------- Boot ----------

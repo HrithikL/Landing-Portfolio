@@ -1,489 +1,1334 @@
 {
   "version": 2,
-  "updated": "2026-10-05T10:21:09.134Z",
-  "note": "Sample stories in the new template. The pipeline (scripts/news/, docs/news-pipeline.md) will replace these with real, generated items in the same shape.",
+  "updated": "2026-10-05T11:21:27.007Z",
   "categories": {
-    "models": "Open Source Models",
-    "claude": "Claude Updates",
-    "tools": "Free AI Tools",
-    "projects": "AI Projects",
-    "repos": "GitHub Repos"
+    "models": "Open Source AI Models",
+    "claude": "Claude",
+    "projects": "Cool AI Projects & Workflows",
+    "tools": "Free Tools",
+    "repos": "Top GitHub Repos of the Week",
+    "general": "General Projects"
   },
   "items": [
     {
-      "id": "tools-001",
-      "category": "tools",
-      "sample": true,
-      "title": "A free browser-based tool for turning a still photo into a short looping video",
-      "topicTag": "Free AI Tools",
-      "endUser": "Anyone who wants a quick animated clip from a photo without installing anything",
-      "toolsUsed": [
-        "The tool's own web app"
-      ],
-      "costStructure": "Free tier covers short clips at standard resolution; paid tier removes the watermark and raises the length/resolution cap",
-      "howItWorks": "Upload a still image, the tool infers plausible motion (camera drift, subtle animation of water/hair/cloth) and renders a few seconds of looping video around it.",
-      "inputNeeded": "One still image (JPG/PNG)",
-      "outputGiven": "A short looping video file (MP4)",
+      "id": "projects-2026-09-30-lathoa-math-app-where-ai-deliberately-makes-mist",
+      "category": "projects",
+      "schema": 3,
+      "title": "Lathoa: Math app where AI deliberately makes mistakes for kids to catch",
+      "summary": "A math learning app for ages 10–14 where an AI robot solves problems with one intentional error per solution; kids find and explain the mistake to build critical thinking and AI literacy skills.",
+      "topicTag": "AI Projects",
+      "builtBy": "Individual developer (HN user lathoa)",
+      "endUser": "Kids aged 10–14 and their parents or teachers building AI literacy and math error-detection skills",
+      "costStructure": "Free tier (3 cases/day); paid yearly subscriptions (Learner, Parent, Family tiers) with founding-member discount for first 50 families",
+      "howItWorks": "Errol the robot generates step-by-step math solutions with one deliberate error. Each case passes through arithmetic verification and a second independent model solve before reaching the child. Kids highlight the wrong step, explain the error in their own words, and earn detective ranks.",
+      "inputNeeded": "Kid selects a math case and reads Errol's step-by-step solution",
+      "outputGiven": "Error detection practice, explanation writing, detective rank progression, replayable case history",
       "workflow": [
-        "Open the site",
-        "Upload a photo",
-        "Pick a motion style",
-        "Render and download the clip"
+        "Kid opens a case",
+        "Errol shows step-by-step solution with one error",
+        "Kid identifies wrong step",
+        "Kid writes explanation of the error",
+        "Errol reveals correct solution",
+        "Kid earns rank points"
       ],
       "useCases": [
-        "Turning a product photo into a subtle animated ad",
-        "Adding light motion to a static portfolio image",
-        "Quick social media loops from existing photos"
+        "Homework-table practice for spotting AI hallucinations",
+        "Classroom supplement for critical thinking math skills",
+        "Sibling sharing on one device with Family plan"
       ],
-      "hardwareRequirements": "None — runs in the browser, processing happens server-side",
-      "integrations": "None",
-      "subscriptionsRequired": "No for the free tier; yes for higher resolution/length",
-      "readingTime": 2,
-      "url": "https://news.ycombinator.com/show",
+      "hardwareRequirements": "Runs in any browser, iOS, and Android",
+      "subscriptionsRequired": "Free tier available; paid plans (Learner, Parent, Family) for unlimited cases, replay, and parent dashboard",
+      "readingTime": 1,
+      "url": "https://lathoa.ai/en",
+      "discussion": "https://news.ycombinator.com/item?id=49909648",
       "source": {
-        "name": "Hacker News (Show HN)",
-        "url": "https://news.ycombinator.com/show"
+        "name": "lathoa.ai",
+        "url": "https://lathoa.ai"
       },
-      "author": "Sample story",
-      "published": "2026-09-18",
+      "author": "thanouil1411",
+      "published": "2026-09-30",
       "official": false,
       "likes": 0,
       "dislikes": 0,
       "image": null
     },
     {
-      "id": "projects-001",
+      "id": "projects-2026-09-29-corral-kill-every-process-an-ai-agent-spawns-gua",
       "category": "projects",
-      "sample": true,
-      "title": "An end-to-end pipeline that turns a voice memo into a formatted meeting summary, built entirely from free tools",
+      "schema": 3,
+      "title": "Corral – Kill every process an AI agent spawns, guaranteed",
+      "summary": "Corral runs a shell command with a wall-clock limit and verifies that no descendant process survives when the command exits. It uses a cgroup v2 group (enforced mode) or proc-tree scanning (fallback mode) to catch daemons, background jobs, and processes that ignore SIGTERM.",
       "topicTag": "AI Projects",
-      "endUser": "Freelancers and small teams who record calls but never have time to write up notes afterward",
+      "modelUsed": "None (system utility, no AI model)",
+      "builtBy": "Cardinal44",
+      "endUser": "AI coding agent authors and CI pipeline maintainers who need guaranteed cleanup of shell commands they did not write",
       "toolsUsed": [
-        "A free speech-to-text tool",
-        "A free-tier LLM API",
-        "A no-code automation platform's free plan"
+        "corral (CLI binary)",
+        "corral-enforced (systemd-run wrapper for cgroup delegation)",
+        "Linux cgroup v2",
+        "pidfd syscalls",
+        "CMake, Ninja, GCC/Clang"
       ],
-      "costStructure": "Free at the volumes described — each tool's free tier covers a handful of hours of audio a month",
-      "howItWorks": "A voice memo drops into a watched folder, gets transcribed automatically, and the transcript is sent to an LLM prompted to extract decisions, action items and owners into a formatted summary.",
-      "inputNeeded": "An audio recording of a call or meeting",
-      "outputGiven": "A formatted text summary with action items and owners",
+      "costStructure": "Free (MIT licensed)",
+      "howItWorks": "Corral starts the command in a new session so signals to the command's process group cannot reach corral itself. It becomes a child subreaper so orphaned processes are reparented to it. In enforced mode the command runs in a dedicated cgroup v2 group; one write to cgroup.kill stops the entire tree. In fallback mode corral scans /proc via pidfds, signals remaining processes, and reaps them until none remain. The run ends when the command exits, not when pipes close.",
+      "inputNeeded": "A shell command to run, plus optional flags for wall time, grace period, memory limit, PID limit, output limit, and JSON audit path",
+      "outputGiven": "Exit code of the command (or corral-specific codes 120, 121, 122, 124, 125, 126, 127, 128+N) and optional JSON audit record with timestamps, PIDs, and termination reason",
       "workflow": [
-        "Record the meeting",
-        "Save the file to the watched folder",
-        "Automation triggers transcription",
-        "Transcript is sent to the LLM with a structured prompt",
-        "Summary lands in a notes app or chat channel"
+        "Install corral binary (prebuilt or from source)",
+        "Run `corral --wall 30s -- your-command`",
+        "Corral starts command in new session as subreaper",
+        "Command executes; corral monitors time and resource limits",
+        "On exit or timeout, corral kills entire process tree via cgroup or /proc scan",
+        "Corral verifies no descendants remain, then returns exit code"
       ],
       "useCases": [
-        "Post-call summaries without manual note-taking",
-        "Keeping a searchable log of decisions made in meetings",
-        "Sharing action items with people who missed the call"
+        "Prevent leftover daemons from AI agent `bash` tool calls",
+        "Ensure CI jobs release ports and file locks after timeout",
+        "Bound memory and PID usage of untrusted build scripts"
       ],
-      "hardwareRequirements": "None — every step runs on the providers' own infrastructure",
-      "integrations": "A notes app or chat tool as the delivery destination (e.g. Notion, Slack)",
-      "subscriptionsRequired": "No, at the volumes described in the source",
+      "hardwareRequirements": "Linux 5.11+ (5.14+ for enforced mode), x86-64 glibc 2.36+",
+      "integrations": "systemd-run (for cgroup delegation in enforced mode)",
+      "subscriptionsRequired": "No subscription needed",
       "readingTime": 2,
-      "url": "https://news.ycombinator.com",
+      "url": "https://github.com/Cardinal44/corral",
+      "discussion": "https://news.ycombinator.com/item?id=49886422",
+      "source": {
+        "name": "github.com",
+        "url": "https://github.com"
+      },
+      "author": "CG144",
+      "published": "2026-09-29",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "claude-2026-10-03-offrun-manage-every-coding-agent-from-one-worksp",
+      "category": "claude",
+      "schema": 3,
+      "kind": "project",
+      "title": "Offrun – manage every coding agent from one workspace",
+      "summary": "A free Mac app that runs Claude Code, Codex, AGY, and Grok Build side by side in isolated git worktrees, with built-in code review by a second agent, automatic account switching on usage limits, project memory, preview, and on-device dictation.",
+      "topicTag": "Claude",
+      "modelUsed": "Claude Code (user-selected model), Codex, AGY (Antigravity CLI), Grok Build",
+      "endUser": "Solo devs and small teams running multiple coding agents who want parallel workflows, automated code review, and seamless usage-limit handling",
+      "toolsUsed": [
+        "Claude Code",
+        "Codex",
+        "AGY (Antigravity CLI)",
+        "Grok Build",
+        "git worktrees"
+      ],
+      "costStructure": "Free (Offrun); bring your own agent subscriptions",
+      "howItWorks": "Offrun launches the CLIs of your coding agents (Claude Code, Codex, AGY, Grok Build) on your Mac, each in its own git worktree so parallel agents never edit the same files. It stores project-wide conventions and per-agent goals as plain files in your repo, renders diffs and previews beside the chat, transcribes dictation locally, and when one agent account hits its usage limit it moves the conversation to another connected account.",
+      "inputNeeded": "Project folder, connected agent account logins, tasks or prompts (text or dictation)",
+      "outputGiven": "Code changes in isolated git worktrees, diffs with line numbers, rendered previews (markdown, tables, images, PDFs), reviewer findings in chat, transcribed dictation text",
+      "workflow": [
+        "Install Offrun on Apple Silicon Mac (macOS 14+)",
+        "Connect coding agent accounts in Settings",
+        "Start an agent, pick a project, give it a task",
+        "Run multiple agents in parallel (each gets own git worktree)",
+        "Optionally assign a reviewer agent to read diffs",
+        "Review changes and merge on your schedule"
+      ],
+      "useCases": [
+        "Run a refactor and a bug fix simultaneously in the same repo",
+        "Have a second agent review code before you see it",
+        "Switch to a second agent account when the first hits usage limits",
+        "Dictate prompts on-device without uploading audio"
+      ],
+      "hardwareRequirements": "Apple Silicon Mac (M1 or newer) running macOS 14 Sonoma or later",
+      "integrations": "Git (worktrees), Anthropic (Claude Code), OpenAI (Codex), Google (AGY), xAI (Grok Build)",
+      "subscriptionsRequired": "No subscription needed for Offrun; requires existing agent subscriptions (Claude Code, Codex, AGY, Grok Build)",
+      "readingTime": 2,
+      "url": "https://offrun.dev/",
+      "discussion": "https://news.ycombinator.com/item?id=49942434",
+      "source": {
+        "name": "offrun.dev",
+        "url": "https://offrun.dev"
+      },
+      "author": "arunbhatia",
+      "published": "2026-10-03",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "claude-2026-10-02-ldraw-nova-open-source-ai-lego-model-generator-u",
+      "category": "claude",
+      "schema": 3,
+      "kind": "project",
+      "title": "ldraw-nova: Open-source AI LEGO model generator using LDraw language",
+      "summary": "An open-source dockerized web app that lets AI agents generate buildable LEGO models in LDraw format, with 3D viewing, VR support, and Blender export.",
+      "topicTag": "Claude",
+      "modelUsed": "GPT-6 Astra and Claude Opus 5.5",
+      "builtBy": "anteloc",
+      "endUser": "LEGO enthusiasts and developers experimenting with agentic AI for physical CAD design",
+      "toolsUsed": [
+        "LDraw",
+        "LDView",
+        "LeoCAD",
+        "Studio",
+        "pyldraw3",
+        "ldraw.rs",
+        "jev-rerank",
+        "TypeSafe Jev System One",
+        "Docker",
+        "Python"
+      ],
+      "costStructure": "Free (open source); requires API keys for OpenAI, Claude, or OpenRouter; TypeSafe API key optional for improved search",
+      "howItWorks": "The agent reads LDraw documentation and examples, plans a model structure, then iteratively writes Python generator scripts that output LDraw source code. It uses headless rendering to inspect and adjust the model until satisfied. The final output is an .mpd file viewable in LEGO CAD tools, 3D web viewers, VR on Meta Quest 3, and exportable to Blender as glTF.",
+      "inputNeeded": "Natural language prompt describing the desired LEGO model",
+      "outputGiven": "LDraw source code (.mpd/.ldr), 3D web viewer, 3D player, VR interactive (Meta Quest 3), rendered images, Blender-editable glTF (.glb), chat history, agent thinking process",
+      "workflow": [
+        "Clone ldraw-nova and ldraw-nova-docker repos",
+        "Build Docker image (~5GB disk)",
+        "Start app via docker compose",
+        "Open https://localhost:8443 or http://localhost:8765",
+        "Enter model prompt in web UI",
+        "Agent generates plan, writes generator script, produces LDraw model",
+        "View result in 3D viewer, VR, or export to Blender"
+      ],
+      "useCases": [
+        "Generate custom LEGO models from text descriptions",
+        "Prototype LEGO designs for physical building",
+        "Experiment with agentic AI for CAD geometry tasks"
+      ],
+      "hardwareRequirements": "Docker with ~5GB disk space; Meta Quest 3 for VR features",
+      "integrations": "OpenAI API, Claude API, OpenRouter API, TypeSafe API, Meta Quest 3",
+      "subscriptionsRequired": "Paid API plan for OpenAI, Claude, or OpenRouter; TypeSafe API key optional",
+      "readingTime": 1,
+      "url": "https://github.com/anteloc/ldraw-nova",
+      "discussion": "https://news.ycombinator.com/item?id=49937916",
+      "source": {
+        "name": "github.com",
+        "url": "https://github.com"
+      },
+      "author": "antelocnova",
+      "published": "2026-10-02",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "claude-2026-09-30-weave-router-2-0-open-source-model-router-for-co",
+      "category": "claude",
+      "schema": 3,
+      "kind": "tip",
+      "title": "Weave Router 2.0: Open-source model router for coding agents at Astra-level performance",
+      "summary": "Weave Router 2.0 plugs into coding agents like Claude Code and intelligently routes tasks across an ensemble of LLMs, matching GPT-6 Astra performance at ~52% cost and 2.2x speed on Terminal Bench 4.0.",
+      "topicTag": "Claude",
+      "modelUsed": "Weave Router 2.0 (custom routing model); routes between models including Astra and Deepseek v4 Flash",
+      "builtBy": "Weave OS team",
+      "endUser": "Developers using Claude Code or Codex who want to reduce LLM costs and latency",
+      "toolsUsed": [
+        "Weave Router 2.0",
+        "Claude Code",
+        "Codex",
+        "Astra",
+        "Deepseek v4 Flash",
+        "Terminal Bench 4.0",
+        "SWE Atlas"
+      ],
+      "costStructure": "Free (open source); hosted version available at weaveos.com/router",
+      "howItWorks": "The router uses a hidden Markov model to trace session state, then a classifier maps sessions to buckets of similar models. It calculates cache-eviction impact to decide when switching models is worth the cost, shrinking the 10^100 routing search space dramatically.",
+      "inputNeeded": "A coding agent session running in Claude Code or Codex",
+      "outputGiven": "Per-turn model selection that routes each agent call to the optimal LLM",
+      "workflow": [
+        "Install Weave Router",
+        "Connect to Claude Code or Codex",
+        "Run coding agent session",
+        "Router selects optimal model per turn",
+        "Task completes at lower cost and faster"
+      ],
+      "useCases": [
+        "Tricky debugging or complex system design tasks routed to Astra",
+        "Simple frontend updates routed to Deepseek v4 Flash",
+        "Any coding agent session needing cost and latency optimization"
+      ],
+      "integrations": "Claude Code, Codex",
+      "subscriptionsRequired": "No subscription needed",
+      "readingTime": 1,
+      "url": "https://news.ycombinator.com/item?id=49911500",
+      "discussion": "https://news.ycombinator.com/item?id=49911500",
       "source": {
         "name": "Hacker News",
         "url": "https://news.ycombinator.com"
       },
-      "author": "Sample story",
-      "published": "2026-09-17",
+      "author": "adchurch",
+      "published": "2026-09-30",
       "official": false,
       "likes": 0,
       "dislikes": 0,
       "image": null
     },
     {
-      "id": "models-2026-09-22-transformers-now-runs-llama-cpp-quants",
+      "id": "models-2026-10-01-computer-vision-tool-evaluates-deadlift-form-wit",
       "category": "models",
-      "title": "Transformers now runs llama.cpp quants",
+      "schema": 3,
+      "title": "Computer vision tool evaluates deadlift form with SAM 3.1, ViTPose+, Gemma 4 26B",
+      "summary": "A side-on video analyzer that counts reps, times each pull, and classifies back position as straight or rounded with per-frame probability, using three open models via VLM Run Gateway.",
       "topicTag": "Open source models",
-      "endUser": "Developers using Hugging Face Transformers to run quantized LLMs",
+      "modelUsed": "SAM 3.1, ViTPose+ Large, Gemma 4 26B (gemma-4-26b-a4b-it) via VLM Run Gateway",
+      "builtBy": "jeremyipark",
+      "endUser": "Lifters and coaches who want frame-level deadlift form data from side-on video",
       "toolsUsed": [
-        "Hugging Face Transformers",
-        "llama.cpp"
+        "VLM Run Gateway API",
+        "conda",
+        "ffmpeg with libplacebo",
+        "moltenvk (macOS Vulkan driver)"
       ],
-      "costStructure": "Free",
-      "howItWorks": "Hugging Face Transformers library now integrates with llama.cpp quantized model formats, enabling direct inference of quantized LLMs within the Transformers ecosystem.",
-      "inputNeeded": "A llama.cpp quantized model file",
-      "outputGiven": "LLM inference via Transformers pipeline",
+      "costStructure": "Free tool; VLM Run Gateway API usage costs apply (run.json records per-model cost)",
+      "howItWorks": "SAM 3.1 tracks the near plate to measure bar height in meters and count reps via hysteresis. ViTPose+ Large computes the shoulder–hip–knee angle as a backup rep counter and hip-hinge visual. Every frame, cropped to the lifter, is sent to Gemma 4 26B as a structured choice question returning {\"straight\": p, \"rounded\": 1-p}; the mean P(rounded) over the first pull (floor to knee) decides the rep verdict.",
+      "inputNeeded": "Side-on deadlift video clips with whole lifter and near plate in frame, placed in data/input/",
+      "outputGiven": "Timestamped output folder with overlay video (live probability panel), timeline.png (bar height, hip angle, P(rounded) per rep), reps.json, reads.json, summary.txt, run.json (config, provenance, cost)",
       "workflow": [
-        "Install Transformers with llama.cpp support",
-        "Load a llama.cpp quantized model",
-        "Run inference via Transformers pipeline"
+        "Get VLM Run API key at app.vlm.run/sign-in",
+        "Add key to .env at repo root",
+        "Create and activate conda env from environment.yml",
+        "Place side-on clips in data/input/",
+        "Run python main.py (or with flags for single clip, credit, etc.)",
+        "Find results in data/output/<timestamp>/"
       ],
       "useCases": [
-        "Running quantized LLMs locally with Transformers API",
-        "Integrating quantized models into existing Transformers workflows",
-        "Benchmarking quantized model performance"
+        "Quantify back rounding probability per rep to track form changes over time",
+        "Cross-check rep counts from bar path vs. hip hinge angle for reliability"
       ],
-      "hardwareRequirements": "None",
-      "integrations": "None",
-      "subscriptionsRequired": "No",
+      "hardwareRequirements": "ffmpeg with libplacebo for HDR tone-mapping; on macOS, moltenvk Vulkan driver (conda install -c conda-forge moltenvk)",
+      "integrations": "VLM Run Gateway API",
+      "subscriptionsRequired": "VLM Run Gateway API key required (sign in at app.vlm.run/sign-in)",
       "readingTime": 1,
-      "url": "https://huggingface.co/blog/transformers-llama-cpp-quants",
+      "url": "https://github.com/jeremyipark/vision-demos/tree/main/deadlift",
+      "discussion": "https://news.ycombinator.com/item?id=49924301",
       "source": {
-        "name": "Hugging Face Blog",
-        "url": "https://huggingface.co/blog"
+        "name": "github.com",
+        "url": "https://github.com"
       },
-      "author": "Hugging Face Blog",
-      "published": "2026-09-22",
-      "official": true,
-      "likes": 0,
-      "dislikes": 0,
-      "image": null
-    },
-    {
-      "id": "models-2026-09-22-jun-kim-joins-hugging-face-to-support-mlx-commun",
-      "category": "models",
-      "title": "Jun Kim joins Hugging Face to support MLX community",
-      "topicTag": "Open source models",
-      "endUser": "MLX framework developers and Apple Silicon ML practitioners",
-      "toolsUsed": [
-        "oMLX",
-        "MLX"
-      ],
-      "costStructure": "Not stated",
-      "howItWorks": "Jun Kim, creator and maintainer of oMLX, has joined Hugging Face to provide dedicated support for the MLX community. The move aims to strengthen MLX ecosystem development on Apple Silicon.",
-      "inputNeeded": "Not stated",
-      "outputGiven": "Not stated",
-      "workflow": [
-        "Hugging Face announces Jun Kim hiring",
-        "Kim begins supporting MLX community initiatives"
-      ],
-      "useCases": [
-        "MLX community gains dedicated Hugging Face support",
-        "oMLX development continues with institutional backing"
-      ],
-      "hardwareRequirements": "None",
-      "integrations": "None",
-      "subscriptionsRequired": "No",
-      "readingTime": 1,
-      "url": "https://huggingface.co/blog/omlx",
-      "source": {
-        "name": "Hugging Face Blog",
-        "url": "https://huggingface.co/blog"
-      },
-      "author": "Hugging Face Blog",
-      "published": "2026-09-22",
-      "official": true,
-      "likes": 0,
-      "dislikes": 0,
-      "image": null
-    },
-    {
-      "id": "models-2026-09-21-pruning-llms-like-a-physicist-block-removal-as-a",
-      "category": "models",
-      "title": "Pruning LLMs Like a Physicist: Block Removal as an Ising Optimization Problem",
-      "topicTag": "Open source models",
-      "endUser": "Not stated",
-      "toolsUsed": [
-        "Not stated"
-      ],
-      "costStructure": "Not stated",
-      "howItWorks": "The method frames LLM block removal as an Ising optimization problem, applying physics-inspired techniques to identify which transformer blocks can be pruned with minimal performance loss. It maps the pruning decision to an energy minimization task solvable via quantum or classical annealing.",
-      "inputNeeded": "Not stated",
-      "outputGiven": "Not stated",
-      "workflow": [
-        "Not stated"
-      ],
-      "useCases": [
-        "Not stated"
-      ],
-      "hardwareRequirements": "None",
-      "integrations": "None",
-      "subscriptionsRequired": "No",
-      "readingTime": 1,
-      "url": "https://huggingface.co/blog/MultiverseComputingCAI/pruning-llms-like-a-physicist-block-removal-as-an",
-      "source": {
-        "name": "Hugging Face Blog",
-        "url": "https://huggingface.co/blog"
-      },
-      "author": "Hugging Face Blog",
-      "published": "2026-09-21",
-      "official": true,
-      "likes": 0,
-      "dislikes": 0,
-      "image": null
-    },
-    {
-      "id": "claude-2026-09-22-claude-messages-api-adds-conversation-compaction",
-      "category": "claude",
-      "title": "Claude Messages API adds conversation compaction and thinking mismatch logging in beta",
-      "topicTag": "Claude",
-      "endUser": "Developers building long-context Claude API apps who need token savings or thinking-block audit trails",
-      "toolsUsed": [
-        "Claude Messages API",
-        "Claude Fable 5.1"
-      ],
-      "costStructure": "Not stated",
-      "howItWorks": "The Messages API now accepts a compaction parameter that returns a signed summary block replacing earlier messages; later requests send that block first. A second beta adds thinking_mismatch_allowed to input_transformations, logging thinking blocks that fail prefix checks without blocking the request.",
-      "inputNeeded": "An API request with the compact-2026-09-04 or thinking-binding-controls-2026-08-01 beta header and the corresponding parameter",
-      "outputGiven": "A signed compaction block for conversation summarization, or input_transformations entries flagging thinking mismatches",
-      "workflow": [
-        "Add the compact-2026-09-04 beta header and compaction parameter to a Messages API request",
-        "Receive a signed compaction block summarizing prior messages",
-        "On subsequent requests, send the compaction block in place of the original messages",
-        "Optionally enable thinking-binding-controls-2026-08-01 header to receive thinking_mismatch_allowed entries in input_transformations",
-        "Log those entries to detect history edits before enforcing prefix checks"
-      ],
-      "useCases": [
-        "Reduce token costs in multi-turn conversations by compacting history on demand",
-        "Audit thinking-block mismatches in production traffic before enabling strict enforcement",
-        "Preserve recent turns verbatim while summarizing older context for long-running agents"
-      ],
-      "hardwareRequirements": "None",
-      "integrations": "None",
-      "subscriptionsRequired": "Not stated",
-      "readingTime": 1,
-      "url": "https://docs.claude.com/en/release-notes/overview#september-14-2026",
-      "source": {
-        "name": "Anthropic",
-        "url": "https://www.anthropic.com"
-      },
-      "author": "Anthropic",
-      "published": "2026-09-22",
-      "official": true,
-      "likes": 0,
-      "dislikes": 0,
-      "image": null
-    },
-    {
-      "id": "claude-2026-09-22-claude-managed-agents-adds-auto-permission-polic",
-      "category": "claude",
-      "title": "Claude Managed Agents adds auto permission policy and terminal session attachment via ant CLI 1.32.0",
-      "topicTag": "Claude",
-      "endUser": "Developers using Claude Managed Agents who need automated tool-call approval and live terminal session control",
-      "toolsUsed": [
-        "Claude Managed Agents",
-        "ant CLI v1.32.0"
-      ],
-      "costStructure": "Not stated",
-      "howItWorks": "The new auto permission policy lets the server evaluate each agent or MCP tool call and automatically run, deny, or pause for approval. The ant CLI beta:sessions connect command attaches a terminal to a running Managed Agents session, streaming live output and allowing interactive approval of pending tool calls. Events include an evaluation field showing how each call was assessed.",
-      "inputNeeded": "A running Claude Managed Agents session and the ant CLI v1.32.0 installed",
-      "outputGiven": "Live terminal view of the agent session with ability to send messages and approve or deny tool calls awaiting permission",
-      "workflow": [
-        "Install or update ant CLI to version 1.32.0",
-        "Start or identify a Claude Managed Agents session",
-        "Run ant beta:sessions connect to attach your terminal",
-        "Optionally pass --web to open the Claude Console session viewer locally",
-        "Monitor live session output and respond to approval prompts for tool calls"
-      ],
-      "useCases": [
-        "Watch a long-running agent task in real time from the terminal",
-        "Approve or deny sensitive tool calls without leaving the command line",
-        "Debug agent behavior by inspecting evaluation fields on each tool call"
-      ],
-      "hardwareRequirements": "None",
-      "integrations": "None",
-      "subscriptionsRequired": "Not stated",
-      "readingTime": 1,
-      "url": "https://docs.claude.com/en/release-notes/overview#september-10-2026",
-      "source": {
-        "name": "Anthropic",
-        "url": "https://www.anthropic.com"
-      },
-      "author": "Anthropic",
-      "published": "2026-09-22",
-      "official": true,
-      "likes": 0,
-      "dislikes": 0,
-      "image": null
-    },
-    {
-      "id": "claude-2026-09-22-claude-ant-cli-1-30-0-adds-ant-apply-for-infrast",
-      "category": "claude",
-      "title": "Claude ant CLI 1.30.0 adds ant apply for infrastructure-as-code resource management",
-      "topicTag": "Claude",
-      "endUser": "DevOps engineers and platform teams managing Claude agents, environments, and deployments as code",
-      "toolsUsed": [
-        "ant CLI 1.30.0",
-        "ant apply command",
-        "claude-lock.json"
-      ],
-      "costStructure": "Not stated",
-      "howItWorks": "The ant apply command reads resource definitions from repository files, prints an execution plan for approval, then creates or updates agents, environments, skills, memory stores, and deployments. A claude-lock.json lockfile tracks resource identities so subsequent runs update existing resources rather than creating duplicates.",
-      "inputNeeded": "Repository files describing agents, environments, skills, memory stores, and deployments",
-      "outputGiven": "Created or updated Claude resources and a claude-lock.json lockfile for idempotent future runs",
-      "workflow": [
-        "Write resource definitions for agents, environments, skills, memory stores, and deployments into repository files",
-        "Run ant apply to generate an execution plan",
-        "Review and approve the printed plan",
-        "Commit the generated claude-lock.json lockfile to the repository",
-        "Run ant apply in CI or locally to update existing resources using the lockfile"
-      ],
-      "useCases": [
-        "Manage Claude agent configurations as version-controlled infrastructure code",
-        "Deploy consistent environments across development, staging, and production",
-        "Enable team collaboration on Claude resource definitions with Git-based workflows"
-      ],
-      "hardwareRequirements": "None",
-      "integrations": "Google Cloud (for per-message effort changes beta on Claude Fable 5.1, Mythos 5.1, Opus 5)",
-      "subscriptionsRequired": "Not stated",
-      "readingTime": 1,
-      "url": "https://docs.claude.com/en/release-notes/overview#september-3-2026",
-      "source": {
-        "name": "Anthropic",
-        "url": "https://www.anthropic.com"
-      },
-      "author": "Anthropic",
-      "published": "2026-09-22",
-      "official": true,
-      "likes": 0,
-      "dislikes": 0,
-      "image": null
-    },
-    {
-      "id": "repos-2026-09-22-ruanyf-weekly-chinese-tech-newsletter-repo-with-",
-      "category": "repos",
-      "title": "Ruanyf Weekly: Chinese Tech Newsletter Repo with AI Coverage",
-      "topicTag": "AI Projects",
-      "endUser": "Chinese-speaking developers and AI builders tracking weekly tech trends",
-      "toolsUsed": [
-        "GitHub",
-        "GitHub Issues",
-        "GitHub Discussions"
-      ],
-      "costStructure": "Free",
-      "howItWorks": "A curated weekly newsletter published every Friday covering technology topics including AI, programming, and industry trends. Readers browse issues on GitHub or subscribe via RSS. Contributors submit content through GitHub Issues. A discussion section provides free job postings for programmers.",
-      "inputNeeded": "GitHub account to submit issues or participate in discussions",
-      "outputGiven": "Weekly curated tech articles, AI developments, programming insights, and job listings",
-      "workflow": [
-        "Visit ruanyf/weekly repository on GitHub",
-        "Browse issue list for weekly editions",
-        "Click any issue number to read that week's curated content",
-        "Submit articles or resources via new GitHub Issue",
-        "Check discussion section '谁在招人' for job postings"
-      ],
-      "useCases": [
-        "Track Chinese AI industry developments and model releases",
-        "Discover programming tools and techniques shared weekly",
-        "Find programming job opportunities in Chinese tech companies"
-      ],
-      "hardwareRequirements": "None",
-      "integrations": "GitHub Issues, GitHub Discussions, RSS feeds",
-      "subscriptionsRequired": "No",
-      "readingTime": 1,
-      "url": "https://github.com/ruanyf/weekly",
-      "source": {
-        "name": "GitHub Trending",
-        "url": "https://github.com/trending"
-      },
-      "author": "GitHub Trending",
-      "published": "2026-09-22",
+      "author": "dr_blueberry",
+      "published": "2026-10-01",
       "official": false,
       "likes": 0,
       "dislikes": 0,
       "image": null
     },
     {
-      "id": "repos-2026-09-22-project-nomad-offline-first-knowledge-server-wit",
-      "category": "repos",
-      "title": "Project NOMAD: Offline-First Knowledge Server with Local AI",
-      "topicTag": "AI Projects",
-      "endUser": "Self-hosters building offline knowledge bases with local AI chat and RAG",
+      "id": "models-2026-10-01-breadcrumb-local-mac-recorder-with-mcp-tools-for",
+      "category": "models",
+      "schema": 3,
+      "title": "Breadcrumb: Local Mac recorder with MCP tools for AI",
+      "summary": "Breadcrumb records screen, meetings, and AI transcripts on a Mac, encrypts everything locally, and exposes 30+ MCP tools so an AI assistant can search memory and act on it. It runs entirely locally, is free, and gives developers full observability of their AI‑driven workflow.",
+      "topicTag": "Open source models",
+      "modelUsed": "Gemma 3 4B via Ollama",
+      "builtBy": "Justin (solo developer)",
+      "endUser": "Solo developers using AI coding assistants on Mac who want a private, searchable memory of all their work",
       "toolsUsed": [
-        "Docker",
+        "Claude Desktop",
+        "Claude Code",
+        "Codex",
+        "Cursor",
+        "opencode",
         "Ollama",
-        "Qdrant",
-        "Kiwix",
-        "Kolibri",
-        "ProtoMaps",
-        "CyberChef",
-        "FlatNotes",
-        "LM Studio",
-        "llama.cpp",
-        "Ubuntu",
-        "Debian"
+        "Gemma 3 4B",
+        "SQLCipher",
+        "MCP"
       ],
-      "costStructure": "Free",
-      "howItWorks": "A Docker-orchestrated management UI (Command Center) installs and configures containerized tools: Kiwix serves offline Wikipedia/books, Kolibri runs Khan Academy courses, ProtoMaps provides offline maps, CyberChef handles data analysis, FlatNotes enables markdown notes, and Ollama/Qdrant power local AI chat with document upload and semantic search. Users access everything via browser at localhost:8080 after a single terminal install script.",
-      "inputNeeded": "Debian-based OS (Ubuntu 26.04 LTS recommended), sudo/root access, internet for initial install only, 4GB+ RAM and 5GB+ disk minimum (32GB RAM + GPU for AI)",
-      "outputGiven": "Browser-accessible offline knowledge server with Wikipedia, medical references, ebooks, Khan Academy courses, regional maps, data tools, notes, local AI chat with RAG, hardware benchmarking, and one-click app catalog",
+      "costStructure": "Free (open beta, no account required)",
+      "howItWorks": "Breadcrumb continuously captures screen OCR, meeting audio with diarization, and AI tool transcripts, storing them in an encrypted SQLite database. A local Ollama instance runs Gemma 3 4B to classify and name entries. The indexed memory is exposed via 30+ Model‑Context‑Protocol (MCP) tools, allowing any compatible AI (Claude Code, Codex, Cursor, opencode) to query context and execute actions such as bug triage or ticket creation.",
+      "inputNeeded": "Mac with 16 GB+ M‑series chip; install Breadcrumb and grant screen‑recording and microphone permissions",
+      "outputGiven": "Encrypted local timeline of screen text, meeting transcripts, AI tool logs; 30+ MCP tools for AI to search, summarize, and act on that memory",
       "workflow": [
-        "Install Debian-based OS (Ubuntu 26.04 LTS recommended) with sudo access",
-        "Run the quick install script: apt update, install curl, download and execute install_nomad.sh",
-        "Open browser to http://localhost:8080 to access Command Center",
-        "Use Setup Wizard to select content collections (Wikipedia, books, courses, maps)",
-        "Enable AI Assistant to install Ollama and Qdrant for local chat with RAG",
-        "Optionally configure external Ollama/OpenAI-compatible API URL in AI settings",
-        "Access all tools via browser — no internet needed after initial setup"
+        "Download and install Breadcrumb on Mac",
+        "Grant screen recording and microphone permissions",
+        "Start recording screen, meetings, AI transcripts",
+        "Indexes data locally, encrypts with SQLCipher",
+        "AI accesses memory via 30+ MCP tools",
+        "AI completes tasks like bug review, tickets"
       ],
       "useCases": [
-        "Offline research station with Wikipedia, medical guides, and survival references",
-        "Classroom or homeschool server delivering Khan Academy courses without internet",
-        "Air-gapped AI assistant for private document chat and semantic search via local Ollama"
+        "Review a Zoom meeting, extract every discussed bug, and auto‑create JIRA tickets with screenshots",
+        "Trace a production bug back to the first AI action that caused it and add a rule to prevent recurrence"
       ],
-      "hardwareRequirements": "Minimum: 2 GHz dual-core, 4GB RAM, 5GB disk, Debian-based OS. Optimal for AI: AMD Ryzen 7/Intel i7, 32GB RAM, NVIDIA RTX 3060 or AMD equivalent, 250GB SSD",
-      "integrations": "Ollama, LM Studio, llama.cpp (OpenAI-compatible APIs), Qdrant, GitHub API (for updates), Cloudflare 1.1.1.1 (connectivity test)",
-      "subscriptionsRequired": "No",
+      "hardwareRequirements": "16 GB+ M‑series Mac",
+      "integrations": "JIRA, Slack, Zoom, Claude Code, Codex, Cursor, opencode",
+      "subscriptionsRequired": "No subscription needed",
       "readingTime": 1,
-      "url": "https://github.com/Crosstalk-Solutions/project-nomad",
+      "url": "https://innerloop.works/breadcrumb",
+      "discussion": "https://news.ycombinator.com/item?id=49924943",
       "source": {
-        "name": "GitHub Trending",
-        "url": "https://github.com/trending"
+        "name": "innerloop.works",
+        "url": "https://innerloop.works"
       },
-      "author": "GitHub Trending",
-      "published": "2026-09-22",
+      "author": "jv22222",
+      "published": "2026-10-01",
       "official": false,
       "likes": 0,
       "dislikes": 0,
       "image": null
     },
     {
-      "id": "repos-2026-09-22-codex-x-visual-manager-for-openai-codex-desktop-",
-      "category": "repos",
-      "title": "Codex-X: Visual manager for OpenAI Codex desktop and CLI",
-      "topicTag": "Free AI Tools",
-      "endUser": "Developers using OpenAI Codex desktop or CLI who manage multiple providers, prompts, and sessions",
+      "id": "models-2026-09-30-token-compression-cli-cuts-codex-api-costs-30-wi",
+      "category": "models",
+      "schema": 3,
+      "title": "Token compression CLI cuts Codex API costs 30% with fine-tuned Qwen",
+      "summary": "Yolanda and Spencer built a free CLI that wraps Codex with a proxy and a fine-tuned Qwen model to strip verbose tool-call outputs before they re-enter the context, preserving KV cache and agent trajectory while reducing input tokens by ~30%.",
+      "topicTag": "Open source models",
+      "modelUsed": "Fine-tuned Qwen model (version/size not specified)",
+      "builtBy": "Yolanda and Spencer (spenmcke)",
+      "endUser": "Developers using OpenAI Codex who hit high API bills on context-heavy coding tasks",
       "toolsUsed": [
-        "Tauri 2",
-        "React 18",
-        "TypeScript",
-        "Vite",
-        "Rust",
-        "SQLite",
-        "OpenAI Codex",
-        "GitHub",
-        "cc-switch"
+        "compress CLI (everest)",
+        "Codex",
+        "Fine-tuned Qwen",
+        "Local proxy"
       ],
       "costStructure": "Free",
-      "howItWorks": "Codex-X reads the local Codex configuration files (~/.codex/config.toml and auth.json) and a local SQLite database to present a desktop GUI. It lets users enable or disable prompt templates, switch between named API providers, sync and delete sessions, manage Skills and MCP servers, and view token usage statistics. All changes are written back to the Codex config files with automatic backups.",
-      "inputNeeded": "OpenAI Codex desktop or CLI installed; optional GitHub account for template sync; optional third-party API keys for custom providers",
-      "outputGiven": "A cross-platform desktop application that visualizes and manages Codex prompts, providers, sessions, Skills/MCP, and token usage",
+      "howItWorks": "A local proxy intercepts Codex tool-call results, feeds them to a fine-tuned Qwen model trained to compress output while preserving file-retrieval accuracy and agent trajectory, then returns the compressed results to Codex so the KV cache stays intact and fewer tokens are billed.",
+      "inputNeeded": "Codex tool-call outputs / agent trajectory",
+      "outputGiven": "Compressed tool-call results with preserved trajectory and file-retrieval accuracy",
       "workflow": [
-        "Step 1: Download and install the Codex-X binary for your OS (macOS, Windows, Linux)",
-        "Step 2: Launch the app; it auto-detects the Codex config directory",
-        "Step 3: Browse built-in prompt templates or import custom Markdown prompts and enable them",
-        "Step 4: Add or switch providers (official Codex login or third-party APIs) and test connections",
-        "Step 5: Sync, search, and delete local sessions grouped by project path",
-        "Step 6: Install or toggle Skills and MCP servers from the visual manager",
-        "Step 7: View token usage trends by date and model in the settings page"
+        "Install CLI via curl script",
+        "Run Codex normally (compression on by default)",
+        "Proxy intercepts tool-call results",
+        "Qwen compresses results preserving trajectory",
+        "Compressed results return to Codex",
+        "Token usage and cost drop ~30%"
       ],
       "useCases": [
-        "Switch between prompt templates for coding, security research, and writing without editing files manually",
-        "Manage multiple API providers and switch between them instantly without restarting Codex",
-        "Clean up accumulated Codex sessions by project and permanently delete unwanted ones",
-        "Install and manage Skills and MCP extensions through a visual interface",
-        "Monitor daily token usage, cache hit rates, and model distribution across sessions"
+        "Cut Codex API spend on large codebase navigation",
+        "Reduce tokens for multi-file refactoring tasks"
       ],
-      "hardwareRequirements": "None",
-      "integrations": "OpenAI Codex, GitHub, cc-switch",
-      "subscriptionsRequired": "No",
+      "integrations": "Codex (OpenAI); SDK and API keys offered for product integration",
+      "subscriptionsRequired": "No subscription needed",
       "readingTime": 1,
-      "url": "https://github.com/yynxxxxx/Codex-X",
+      "url": "https://news.ycombinator.com/item?id=49911910",
+      "discussion": "https://news.ycombinator.com/item?id=49911910",
       "source": {
-        "name": "GitHub Trending",
-        "url": "https://github.com/trending"
+        "name": "Hacker News",
+        "url": "https://news.ycombinator.com"
       },
-      "author": "GitHub Trending",
-      "published": "2026-09-22",
+      "author": "yolandac",
+      "published": "2026-09-30",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "models-2026-09-30-parrot-open-source-mac-meeting-recorder-with-liv",
+      "category": "models",
+      "schema": 3,
+      "title": "Parrot – Open-Source Mac Meeting Recorder with Live AI Co-Pilot",
+      "summary": "Parrot records any audio your Mac hears, transcribes and diarizes locally with Whisper or Parakeet, and runs a live assistant that suggests answers from your own documents during the call. Post-call it writes a structured report with action items and coaching, all on-device unless you opt into cloud APIs.",
+      "topicTag": "Open source models",
+      "modelUsed": "Whisper (local), Parakeet v3 (local), Ollama (local LLMs), optional: Claude, OpenAI, Gemini, Groq, Deepgram, TypeSafe, LM Studio",
+      "builtBy": "Uygar (turantekin on GitHub)",
+      "endUser": "Solo professionals, founders, sales reps, and recruiters who run frequent video/voice calls on macOS and want live, document-grounded assistance without a meeting bot",
+      "toolsUsed": [
+        "Whisper",
+        "Parakeet v3",
+        "Ollama",
+        "Apple Natural Language / Embeddings",
+        "GPL-3.0 licensed Swift/SwiftUI app",
+        "CalendarKit (calendar integration)",
+        "Obsidian, Reminders, webhooks (Zapier/Make)",
+        "Claude Desktop, Cursor, Claude Code, Codex (MCP-style integration)"
+      ],
+      "howItWorks": "Parrot auto-detects when a call starts and records system + mic audio with echo cancellation. Transcription and speaker diarization run on-device using Whisper or Parakeet. Your PDF/text/markdown documents are chunked and embedded locally via Apple's language models. During the call, the assistant (Ollama local LLM or your cloud key) retrieves relevant passages and shows answer cards in real time. After the call, the same pipeline generates a summary, action items, objections, talk-balance metrics, and coaching notes, each linked to the transcript line. Everything stays on the Mac unless you enable cloud transcription or a cloud LLM.",
+      "inputNeeded": "Mac audio (system + microphone), optional documents (PDF, .txt, .md), optional calendar access, optional API keys for cloud providers",
+      "outputGiven": "Live answer cards during calls, speaker-labeled transcript, post-call report (summary, action items, objections, talk balance, coaching), searchable meeting history, exports to Obsidian/Reminders/webhook",
+      "workflow": [
+        "Install Parrot (signed, notarized) on macOS 14+ Apple Silicon",
+        "Optionally connect calendar and add reference documents",
+        "Choose profile (Sales discovery, Interview, etc.) or create custom",
+        "Start recording (⌘R) – Parrot auto-detects call apps",
+        "Live assistant shows document-grounded answer cards",
+        "Stop recording (⌘-.) – report generates instantly",
+        "Ask Parrot about past meetings (⌘K) or export notes/actions"
+      ],
+      "useCases": [
+        "Sales discovery: live objection handling from pricing FAQ, post-call coaching on talk ratio and missed buying signals",
+        "Candidate interviews: live red-flag detection, structured scorecard report with evidence timestamps",
+        "Customer success calls: instant recall of prior commitments, auto-draft follow-up email with action items"
+      ],
+      "hardwareRequirements": "macOS 14+, Apple Silicon (M-series); model downloads require several GB disk space",
+      "integrations": "Google Meet, Zoom, Teams, any audio-playing app; Calendar (auto-profile selection); Obsidian, Reminders, Zapier/Make webhooks; Claude Desktop, Cursor, Claude Code, Codex",
+      "subscriptionsRequired": "No subscription needed. Cloud features use your own API keys/accounts (Anthropic, OpenAI, Google, Groq, Deepgram, TypeSafe).",
+      "readingTime": 2,
+      "url": "https://openparrot.app",
+      "discussion": "https://news.ycombinator.com/item?id=49910328",
+      "source": {
+        "name": "openparrot.app",
+        "url": "https://openparrot.app"
+      },
+      "author": "turantekin",
+      "published": "2026-09-30",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "models-2026-09-30-perspica-semantic-diff-tool-for-reviewing-ai-gen",
+      "category": "models",
+      "schema": 3,
+      "title": "Perspica – semantic diff tool for reviewing AI-generated code changes",
+      "summary": "Perspica parses code diffs with tree-sitter to group changes by intent, filter mechanical noise, and surface hidden issues like broken call sites. Optional LLM analysis (via Claude Code, API keys, or local Ollama models) adds risk ratings, summaries, and maps changes to your original prompts when using Claude Code or Codex.",
+      "topicTag": "Open source models",
+      "modelUsed": "Optional: claude-opus-5-5 (default), claude-sonnet-5-5, claude-haiku-4-5 via Claude Code or Anthropic API; gpt-4o via OpenAI API; gemma4:12b, qwen3-coder:30b via Ollama",
+      "builtBy": "sshah03",
+      "endUser": "Developers reviewing large AI-generated PRs from Claude Code or Codex, and teams wanting semantic diff review without sending code off-machine",
+      "toolsUsed": [
+        "tree-sitter",
+        "Rust",
+        "cargo",
+        "Claude Code",
+        "Codex",
+        "Ollama",
+        "gh CLI"
+      ],
+      "costStructure": "Free (core); optional LLM analysis uses your existing Claude Code subscription, API key costs, or local hardware for Ollama",
+      "howItWorks": "Perspica runs a local tree-sitter parse on both sides of a diff, fingerprints symbols ignoring formatting, matches items across versions, classifies each change (rename, signature change, logic change, move, extraction), builds a cross-file call graph, and renders a reading order from entry points down. An optional LLM pass groups classified changes by intent, rates risk, and checks each group against your Claude Code/Codex session prompts to label changes as 'asked' or 'agent's call'.",
+      "inputNeeded": "A git repository with changes (branch, PR, staged, commit range, or two files)",
+      "outputGiven": "Semantic diff view in terminal, JSON, or local web viewer showing changes grouped by intent, mechanical noise collapsed, reading order, broken call sites, unused code, and optional LLM risk summaries with prompt mapping",
+      "workflow": [
+        "Install binary or build with cargo",
+        "Run perspica in a git repo",
+        "Review semantic diff in terminal or --web viewer",
+        "Optional: run -s for LLM analysis with chosen provider",
+        "Navigate changes by intent, reading order, or file"
+      ],
+      "useCases": [
+        "Review a large PR authored by Claude Code to see which changes you requested vs agent decisions",
+        "Quickly understand a teammate's AI-generated PR without line-by-line diff fatigue",
+        "Catch broken call sites and unused code after a refactor before merging"
+      ],
+      "hardwareRequirements": "Runs on macOS, Linux, Windows; Ollama local models need ~16 GB RAM for gemma4:12b, ~32 GB for qwen3-coder:30b",
+      "integrations": "Git, GitHub CLI (gh), Claude Code, Codex, Ollama",
+      "subscriptionsRequired": "No subscription needed for core features; LLM analysis uses existing Claude Code login, API keys, or local Ollama",
+      "readingTime": 2,
+      "url": "https://github.com/sshah03/perspica",
+      "discussion": "https://news.ycombinator.com/item?id=49914005",
+      "source": {
+        "name": "github.com",
+        "url": "https://github.com"
+      },
+      "author": "sshah03",
+      "published": "2026-09-30",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "models-2026-09-28-omnesis-self-hosted-private-knowledge-layer-for-",
+      "category": "models",
+      "schema": 3,
+      "title": "Omnesis – Self-hosted private knowledge layer for AI agents",
+      "summary": "Omnesis is a self-hosted context layer that syncs your email, messages, health, files, calendar, finances, photos, and more into a local encrypted graph, then exposes it to any tool-using agent (ChatGPT, Claude, Codex, etc.) or its own private companion app — all running on your hardware.",
+      "topicTag": "Open source models",
+      "modelUsed": "User-configurable local models for embedding, OCR, audio transcription, and the Omnesis agent (runs on own hardware or zero-retention cloud providers)",
+      "builtBy": "Solo developer (omnesis.dev author)",
+      "endUser": "Individuals who want private, full-life AI recall across email, chat, health, finance, photos, and documents on hardware they control",
+      "toolsUsed": [
+        "Omnesis CLI",
+        "Browser extension",
+        "Companion web portal / app",
+        "OAuth integrations for each data source"
+      ],
+      "costStructure": "Free (self-hosted); optional cloud inference pay-per-use",
+      "howItWorks": "Omnesis connects to opted-in sources via OAuth, continuously syncs data in the background, runs local embedding, OCR, and transcription to build a unified people-and-document graph, and serves that graph to external agents through tool calls or to its own read-only companion agent. Cloud inference is opt-in and zero-retention; everything else stays on your machine.",
+      "inputNeeded": "OAuth credentials for chosen sources (Gmail, WhatsApp, iMessage, Apple Notes, Notion, Calendar, Health, Drive, Contacts, Strava, Granola, bank, Coinbase, browser, Screen Time, call logs, voicemail, location); local machine for indexing and model inference",
+      "outputGiven": "Local searchable graph with citations, agent tool endpoints for external LLMs, private companion chat with grounded answers",
+      "workflow": [
+        "Install Omnesis CLI on your machine",
+        "Add sources via one-click OAuth (e.g., omnesis sources add gmail)",
+        "Background sync builds encrypted local graph",
+        "Connect external agents via tool use or open companion app",
+        "Query your digital life with full citations"
+      ],
+      "useCases": [
+        "Trace a contract from email to WhatsApp to signed PDF in Drive with timeline citations",
+        "Correlate health metrics, calendar events, and location visits for a given week",
+        "Extract receipts from photographed screenshots and match to bank transactions"
+      ],
+      "hardwareRequirements": "Machine you control with storage for full personal index; sufficient RAM/GPU for local embedding, OCR, transcription, and agent models if running fully local",
+      "subscriptionsRequired": "No subscription needed (self-hosted); optional cloud inference pay-as-you-go",
+      "readingTime": 2,
+      "url": "https://omnesis.dev/",
+      "discussion": "https://news.ycombinator.com/item?id=49877752",
+      "source": {
+        "name": "omnesis.dev",
+        "url": "https://omnesis.dev"
+      },
+      "author": "adrienconrath",
+      "published": "2026-09-28",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "repos-2026-10-02-answer-me-with-html-agent-skill-that-answers-har",
+      "category": "repos",
+      "schema": 3,
+      "title": "Answer me with HTML — agent skill that answers hard questions with a readable one-page HTML",
+      "summary": "An agent skill that lets AI agents answer complex questions by generating a single, self-contained HTML page with diagrams, tables, and visual explanations instead of walls of text. The model writes only a Markdown draft (~1/7 the tokens) while a bundled CLI handles layout, theming, and diagram rendering, delivering pages ~3x faster and ~27% cheaper than asking for HTML directly.",
+      "topicTag": "GitHub Repos",
+      "modelUsed": "Claude Sonnet 5.5 (benchmarked); works with any agent (Claude Code, Codex, Cursor, OpenCode, etc.)",
+      "builtBy": "QingYunA",
+      "endUser": "Developers and technical users who want AI agents to explain complex concepts with visual, readable HTML pages instead of long text responses",
+      "toolsUsed": [
+        "Node.js 20+",
+        "vercel-labs/skills installer",
+        "dagre (flow layout)",
+        "ElevenLabs API (optional, video narration)",
+        "Chrome + ffmpeg + Node.js 22+ (MP4 export)"
+      ],
+      "costStructure": "Free (no subscription; optional ElevenLabs API key for video narration)",
+      "howItWorks": "The agent writes a short Markdown draft with structured components (sequence diagrams, flow charts, tables, timelines, etc.) and passes it to the CLI. The CLI computes panel placement and diagram coordinates with dagre, applies a theme (blueprint or shadcn), validates the draft against ASD-STE100 writing rules, and outputs a single HTML file with embedded CSS/JS that works offline. Errors are returned with line numbers for the agent to fix in one retry.",
+      "inputNeeded": "A natural-language question or request for explanation (e.g., 'Explain the TCP three-way handshake', 'Map out how modules fit together', 'make a 3b1b-style video on the TCP handshake')",
+      "outputGiven": "A single self-contained HTML file saved to ~/.answer-me-with-html/pages/ with diagrams, tables, timelines, or explainer video player; optionally an MP4 video file with --mp4 flag",
+      "workflow": [
+        "Install skill via npx skills add",
+        "Ask agent a complex question",
+        "Agent writes Markdown draft",
+        "CLI renders draft to HTML page",
+        "Page opens in browser and saves to disk"
+      ],
+      "useCases": [
+        "Explain TCP three-way handshake with sequence diagram, state diagram, and flag table",
+        "Visualize repo module organization with folder tree and call graph",
+        "Compare Redis vs Memcached with comparison table and verdict",
+        "Create 3Blue1Brown-style explainer videos with synced narration and animations"
+      ],
+      "hardwareRequirements": "Node.js 20+; for MP4 export: Chrome, ffmpeg, Node.js 22+",
+      "integrations": "Claude Code, Codex, Cursor, OpenCode, and 70+ other agents via vercel-labs/skills; ElevenLabs API for video narration",
+      "subscriptionsRequired": "No subscription needed",
+      "readingTime": 2,
+      "url": "https://github.com/QingYunA/answer-me-with-html",
+      "source": {
+        "name": "GitHub",
+        "url": "https://github.com"
+      },
+      "author": "QingYunA",
+      "published": "2026-10-02",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "repos-2026-09-30-oil-ui-ai-ui-design-methodology-skill-for-agents",
+      "category": "repos",
+      "schema": 3,
+      "title": "oil-ui: AI UI Design Methodology Skill for Agents",
+      "summary": "A Skill that gives AI agents a structured design methodology to create polished, differentiated UI designs with a built-in comparison page for reviewing directions.",
+      "topicTag": "GitHub Repos",
+      "builtBy": "oil-oil",
+      "endUser": "Developers and designers using AI agents to produce production-ready UI designs",
+      "toolsUsed": [
+        "npx skills",
+        "Python 3",
+        "Node.js 18+"
+      ],
+      "costStructure": "Free (open source) / Paid Pro version 69 CNY one-time",
+      "howItWorks": "Install the Skill via npx, then give an agent a design task. The agent follows a multi-step methodology: categorize the product, define tone scales, start from concrete references, design distinct first-screen skeletons, verify differentiation across directions, polish memorable moments, and present options in a side-by-side comparison page for selection.",
+      "inputNeeded": "Design task description, optional brand assets, screenshots, or existing project",
+      "outputGiven": "Multiple design directions as previewable HTML pages with a comparison page for selection",
+      "workflow": [
+        "Install Skill via npx skills add oil-oil/oil-ui",
+        "Give agent a design task with any reference materials",
+        "Agent applies methodology to produce distinct design directions",
+        "Review directions in the built-in comparison page",
+        "Select a direction for the agent to refine further"
+      ],
+      "useCases": [
+        "Exploring multiple visual directions for a new product landing page",
+        "Polishing an existing interface against its own design system",
+        "Recreating a page from a screenshot with responsive layouts"
+      ],
+      "hardwareRequirements": "Runs on macOS (tested); Windows and Linux untested",
+      "integrations": "draw-ui for image-first design, oil-motion for scroll-driven animations",
+      "subscriptionsRequired": "No subscription needed for open source version; Pro is 69 CNY one-time purchase",
+      "readingTime": 1,
+      "url": "https://github.com/oil-oil/oil-ui",
+      "source": {
+        "name": "GitHub",
+        "url": "https://github.com"
+      },
+      "author": "oil-oil",
+      "published": "2026-09-30",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "repos-2026-09-30-universal-modder-ai-agent-that-mods-almost-any-p",
+      "category": "repos",
+      "schema": 3,
+      "title": "universal-modder – AI agent that mods almost any PC game",
+      "summary": "A plugin and CLI that give any AI coding agent (Claude Code, Codex, Gemini, etc.) a complete skill set to discover, reverse‑engineer, generate assets with fal, test in‑game, record a showcase video and publish a mod for virtually any single‑player PC title you own.",
+      "topicTag": "GitHub Repos",
+      "modelUsed": "fal models (GPT Image 2, Nano Banana 2, FLUX, Trellis 2, ElevenLabs) via fal MCP; any host LLM such as Claude Code (Anthropic), Codex (OpenAI), Gemini (Google) can drive the agent",
+      "builtBy": "rehan-remade (GitHub user)",
+      "endUser": "Indie modders and hobbyist developers who own PC games and want AI‑assisted creation of gameplay mods, new assets, or cross‑game mashups",
+      "toolsUsed": [
+        "fal MCP server",
+        "um CLI (Python)",
+        "Python 3.10+",
+        "ffmpeg",
+        "Blender",
+        "uv (package installer)",
+        "ILSpy",
+        "Cpp2IL",
+        "Vineflower",
+        "Ghidra",
+        "IDA Pro",
+        "Cheat Engine",
+        "Frida",
+        "RenderDoc",
+        "tModLoader",
+        "Fabric",
+        "ScriptHookV",
+        "ReShade",
+        "BepInEx",
+        "Harmony",
+        "UE4SS",
+        "REFramework",
+        "SKSE"
+      ],
+      "costStructure": "Free core tooling; fal cloud asset generation requires a paid fal API key (pay‑per‑generation), local ComfyUI path is free",
+      "howItWorks": "The agent installs the universal‑modder plugin, runs `um scan` to fingerprint the game engine and locate a safe modding route, then follows the mod‑any‑game skill loop: recon → reverse‑engineer code → generate sprites/3D/audio via the fal MCP (or local ComfyUI) → verify the mod in the running game → record a video → package the mod and write a field note back to the shared knowledge base.",
+      "inputNeeded": "Path to a locally installed game you own; optional fal API key for cloud asset generation",
+      "outputGiven": "A functional game mod (code, assets, packaging) plus an optional showcase video and a field‑note entry added to the community knowledge base",
+      "workflow": [
+        "Install universal‑modder plugin for your AI agent",
+        "Run `um scan` to detect engine and modding route",
+        "Agent executes mod‑any‑game loop: recon, reverse‑engineer, generate assets via fal",
+        "Test the mod in the live game and record a showcase video",
+        "Package the mod and optionally submit a field note PR"
+      ],
+      "useCases": [
+        "Add a homing missile launcher and tactical nuke to Terraria (tModLoader)",
+        "Create a new civilization with a unique 3D‑rendered unit for Age of Empires II DE",
+        "Run real Minecraft inside GTA V story mode with cross‑game physics interaction"
+      ],
+      "hardwareRequirements": "Windows (native or WSL), macOS, or Linux with Python 3.10+, ffmpeg, Blender for 3D→sprite rendering; GPU recommended for fal cloud generation but not required for local ComfyUI",
+      "integrations": "fal MCP server, local ComfyUI, Steam/Epic/Xbox install detection, mod loaders (tModLoader, Fabric, ScriptHookV, BepInEx, Harmony, UE4SS, REFramework, SKSE)",
+      "subscriptionsRequired": "No subscription for core; fal API key needed for cloud asset generation (pay‑per‑use)",
+      "readingTime": 2,
+      "url": "https://github.com/rehan-remade/universal-modder",
+      "source": {
+        "name": "GitHub",
+        "url": "https://github.com"
+      },
+      "author": "rehan-remade",
+      "published": "2026-09-30",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "repos-2026-09-30-easyread-local-first-pdf-paper-translator-with-s",
+      "category": "repos",
+      "schema": 3,
+      "title": "EasyRead: Local-first PDF paper translator with side-by-side view, AI chat, and literature management",
+      "summary": "EasyRead is a desktop app that translates English research papers into formatted Chinese while preserving formulas, tables, and layout. It runs locally, lets you choose any LLM (Claude Code, OpenAI, Ollama, etc.), and adds side-by-side comparison, highlights, notes, AI Q&A, and a searchable literature library with offline HTML export.",
+      "topicTag": "GitHub Repos",
+      "builtBy": "Edwardxlai with contributors @Wang-auspicious, @bisuwuss-netizen, @MeshedPoto, @Lzy22301093",
+      "endUser": "Researchers, graduate students, and academics who read English papers and want formatted Chinese translations with AI-assisted reading and personal library management",
+      "toolsUsed": [
+        "Python 3.10+",
+        "Electron",
+        "PDFium",
+        "KaTeX",
+        "Node.js 22+",
+        "PyInstaller"
+      ],
+      "howItWorks": "An Electron wrapper launches a local Python service (port 8765) that serves a web UI. You import PDFs via drag-and-drop, arXiv ID, DOI, or URL; the backend translates page-by-page in the background using your selected model (Claude Code, Codex, cloud APIs, or local Ollama/LM Studio). Formulas render via KaTeX, tables as three-line tables, references kept intact. A side panel shows original pages synced to scroll position. You can highlight in four colors, add notes, ask an AI chat panel (multi-model, streaming) about selected text or colored highlights, and edit translations inline. All data — PDF, page images, translations, notes, chats — stays in per-paper folders on disk; a settings option migrates the library to any cloud-synced folder. Export produces a single offline HTML file with everything embedded.",
+      "inputNeeded": "Local PDF files, arXiv IDs, DOIs, paper titles, or paper URLs (OpenReview, ACL, NeurIPS, bioRxiv, PMC, journal pages)",
+      "outputGiven": "Translated paper with formatted Chinese text, KaTeX formulas, three-line tables, side-by-side original text toggle, synced original-page view, highlights, notes, AI chat responses, literature library with categories/progress/citations, exportable single-file offline HTML",
+      "workflow": [
+        "Download and run installer (Windows .exe, macOS .dmg, Linux .AppImage) or `pip install git+https://github.com/Edwardxlai/easyread`",
+        "Open app → Settings → Models → add and select a translation model",
+        "Drag a PDF into the window or paste an arXiv ID/DOI/URL to import",
+        "Wait for background page-by-page translation; read translated pages as they appear",
+        "Use toolbar on paragraph click: highlight, note, ask AI; open side-by-side or original-page view",
+        "Manage papers in library sidebar; export offline HTML via right-click or CLI"
+      ],
+      "useCases": [
+        "Translate a 30-page arXiv preprint into formatted Chinese while keeping formulas and tables intact",
+        "Ask the AI panel \"What's the connection between the formulas I highlighted in red?\" and get a streaming answer",
+        "Build a personal literature library with custom categories, reading status, and GB/T 7714/APA/BibTeX citations",
+        "Send a colleague a single HTML file containing the translated paper, your highlights, notes, and original pages"
+      ],
+      "hardwareRequirements": "Windows, macOS (Apple Silicon), or Linux; for local Ollama models: GPU with VRAM for chosen model (qwen3.5:9b needs ~8 GB, 4b variant for smaller GPUs)",
+      "integrations": "Obsidian, Notion (via Markdown export); cloud sync via user's own synced folder (iCloud, OneDrive, Dropbox, etc.); GitHub Pages (via `easyread demo` export)",
+      "subscriptionsRequired": "No subscription needed for local Ollama/LM Studio models; Claude Code requires Anthropic subscription; cloud APIs require respective API keys (some have free tiers)",
+      "readingTime": 2,
+      "url": "https://github.com/Edwardxlai/easyread",
+      "source": {
+        "name": "GitHub",
+        "url": "https://github.com"
+      },
+      "author": "Edwardxlai",
+      "published": "2026-09-30",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "repos-2026-09-30-yomiyasu-agent-skill-for-refining-ai-generated-j",
+      "category": "repos",
+      "schema": 3,
+      "title": "yomiyasu: Agent Skill for Refining AI-Generated Japanese into Natural Japanese",
+      "summary": "yomiyasu is an open-source Agent Skill that rewrites AI-generated Japanese text into natural, readable Japanese by fixing unnatural metaphors, ambiguous subject-predicate relationships, and excessive formatting while preserving original meaning.",
+      "topicTag": "GitHub Repos",
+      "builtBy": "大賀 愛一郎 (oga_aiichiro) @ ALGO ARTIS",
+      "endUser": "Japanese technical writers, developers writing documentation, and teams producing specs, PR descriptions, or internal reports with AI assistance",
+      "toolsUsed": [
+        "Python 3 (standard library only)",
+        "yomiyasu_lint.py (static linting)",
+        "yomiyasu_diff.py (diff checking)",
+        "Claude Code",
+        "Cursor",
+        "Codex",
+        "Gemini"
+      ],
+      "costStructure": "Free (MIT License)",
+      "howItWorks": "The skill applies seven transformation principles to input text: verifying subject-predicate-modifier relationships, preserving sentence function and style, removing anthropomorphism, converting metaphors to plain language, checking preamble and contrast roles, avoiding added information, and adjusting sentence length and punctuation. It includes two Python linting tools for static analysis and diff checking.",
+      "inputNeeded": "AI-generated Japanese text (technical articles, specifications, PR descriptions, reports)",
+      "outputGiven": "Refined Japanese text with natural phrasing, clear subject-predicate structure, and appropriate formatting",
+      "workflow": [
+        "Install via npx skills add nanaism/yomiyasu or npx openskills install nanaism/yomiyasu",
+        "Load the skill in your AI coding environment (Claude Code, Cursor, Codex)",
+        "Paste draft text and prompt: 'この文章を読みやすくして' or specify domain (tech/business/essay)",
+        "Review the refined output",
+        "Optionally run yomiyasu_lint.py or yomiyasu_diff.py for quality checks"
+      ],
+      "useCases": [
+        "Polishing AI-written technical blog posts and code explanations",
+        "Cleaning up AI-generated specification documents and PR descriptions",
+        "Refining internal reports and design documents drafted with AI"
+      ],
+      "hardwareRequirements": "Runs on any system with Python 3; no GPU or external dependencies required",
+      "integrations": "Claude Code, Cursor, Codex, Gemini, Claude.ai Web (via custom skill ZIP)",
+      "subscriptionsRequired": "No subscription needed",
+      "readingTime": 1,
+      "url": "https://github.com/nanaism/yomiyasu",
+      "source": {
+        "name": "GitHub",
+        "url": "https://github.com"
+      },
+      "author": "nanaism",
+      "published": "2026-09-30",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "repos-2026-09-29-copilotkit-opendots-template-for-ai-coworkers-th",
+      "category": "repos",
+      "schema": 3,
+      "title": "CopilotKit/OpenDots: Template for AI coworkers that work across chat, calls, and Slack",
+      "summary": "OpenDots is a self-hosted TypeScript template for building an agent workspace where named \"Dots\" act as persistent AI coworkers — they research, write, browse, run code, and hand off work through human-in-the-loop review, all while moving between text chat, voice calls, and Slack threads.",
+      "topicTag": "GitHub Repos",
+      "modelUsed": "OpenAI-compatible model provider via TanStack AI (configured in .env)",
+      "builtBy": "CopilotKit",
+      "endUser": "Developers and small teams building custom AI agent workspaces with persistent coworkers",
+      "toolsUsed": [
+        "CopilotKit React SDK",
+        "CopilotKit Runtime",
+        "TanStack AI",
+        "AG-UI",
+        "Channels SDK",
+        "OpenBot",
+        "CopilotKit Intelligence / Threads",
+        "OpenMuse",
+        "OpenTag"
+      ],
+      "costStructure": "Free (MIT licensed, self-hosted)",
+      "howItWorks": "The web app (React + CopilotKit SDK) streams AG-UI events to a CopilotKit runtime that coordinates specialist compute agents via TanStack AI. Each Dot gets an isolated OpenBot computer (browser, shell, files) with per-Dot permissions. Conversations persist in CopilotKit Intelligence Threads; human-in-the-loop cards pause tool calls for approval. Slack mentions route through Channels SDK into the same Threads. Voice calls use a WebRTC speech bridge that delegates compute to a separate agent while sharing context.",
+      "inputNeeded": "Node.js 24, npm, .env with model provider credentials, optional Slack app credentials, speech provider credentials, OpenBot browser/service containers",
+      "outputGiven": "Running local agent workspace at http://127.0.0.1:5173 with Spaces, Pages, Specialist Dots, chat, voice calls, Slack integration, and persistent per-Dot computers",
+      "workflow": [
+        "Clone repo and install dependencies",
+        "Copy .env.example to .env and add model provider keys",
+        "Run npm run dev to start the web app",
+        "Create Spaces and configure Specialist Dots with roles and tools",
+        "Optionally connect Slack, speech, and OpenBot computer services",
+        "Chat with Dots, approve drafts, start calls, or mention them in Slack"
+      ],
+      "useCases": [
+        "Researcher Dot browses web, saves notes to a Page, Writer Dot turns findings into a draft, you approve via human-in-the-loop card",
+        "Team mentions a Dot in Slack to delegate a task, continues the thread in the web app with full context and computer access",
+        "Start a voice call with a Dot while it runs a long browser task in the background, minimize call to keep chatting"
+      ],
+      "hardwareRequirements": "Docker for OpenBot browser/service containers; Node.js 24 runtime",
+      "integrations": "Slack (via Channels SDK), OpenAI-compatible model APIs, WebRTC speech providers, OpenBot computer service",
+      "subscriptionsRequired": "No subscription needed for the template; external model, speech, and Slack services may require their own paid plans",
+      "readingTime": 2,
+      "url": "https://github.com/CopilotKit/OpenDots",
+      "source": {
+        "name": "GitHub",
+        "url": "https://github.com"
+      },
+      "author": "CopilotKit",
+      "published": "2026-09-29",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "repos-2026-09-29-feder-cr-dots-open-source-ai-agent-with-undetect",
+      "category": "repos",
+      "schema": 3,
+      "title": "feder-cr/dots: Open-source AI agent with undetectable Firefox browser",
+      "summary": "An AI agent that ships its own patched Firefox engine to avoid detection — real fingerprints, human-like input events, persistent profiles, and proxy-aware locale matching. Swap any OpenRouter model with one flag.",
+      "topicTag": "GitHub Repos",
+      "modelUsed": "Any model on OpenRouter (configurable via --model flag)",
+      "builtBy": "feder-cr",
+      "endUser": "Developers building web automation agents that hit anti-bot walls, researchers needing undetectable browser sessions, anyone automating sites that block headless browsers",
+      "toolsUsed": [
+        "Python",
+        "Firefox (patched C++ engine)",
+        "Playwright",
+        "OpenRouter API",
+        "MCP (Model Context Protocol)",
+        "uv (package manager)"
+      ],
+      "costStructure": "Free (MIT licensed); OpenRouter model usage is pay-per-token",
+      "howItWorks": "Dots bundles a C++-patched Firefox that presents a consistent, seedable fingerprint (screen, fonts, GPU, timezone, language) with no WebDriver flags or automation globals. Pointer movements and keystrokes are synthesized as trusted events. Profiles persist logins and cookies across runs. Proxies automatically align timezone and language. The agent connects to any OpenRouter model and exposes a live split view at localhost:8765.",
+      "inputNeeded": "OpenRouter API key, natural-language task prompt, optional --model, --seed, --proxy, --profile-dir",
+      "outputGiven": "Completed web task results, live browser view at http://127.0.0.1:8765 (conversation left, browser right)",
+      "workflow": [
+        "Install uv (Python package manager)",
+        "Run uvx --from git+https://github.com/feder-cr/dots dots --openrouter-key <key>",
+        "Open http://127.0.0.1:8765 in browser",
+        "Type task in left panel",
+        "Watch agent drive real Firefox on right"
+      ],
+      "useCases": [
+        "Check flight prices across date ranges without airline blocks",
+        "Scrape sites that fingerprint and block headless Chrome",
+        "Automate login-required workflows with persistent sessions",
+        "Run MCP tools (Claude Code, Codex, Gemini CLI) with stealth browser via invisible_playwright_mcp"
+      ],
+      "hardwareRequirements": "Runs Firefox; typical desktop RAM/CPU sufficient",
+      "integrations": "OpenRouter (models), MCP clients (Claude Code, Codex, Gemini CLI), Playwright",
+      "subscriptionsRequired": "No subscription for dots; OpenRouter requires API credits",
+      "readingTime": 1,
+      "url": "https://github.com/feder-cr/dots",
+      "source": {
+        "name": "GitHub",
+        "url": "https://github.com"
+      },
+      "author": "feder-cr",
+      "published": "2026-09-29",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "repos-2026-09-29-vibewise-claude-code-plugin-that-teaches-you-to-",
+      "category": "repos",
+      "schema": 3,
+      "title": "VibeWise: Claude Code plugin that teaches you to build while AI writes code",
+      "summary": "VibeWise is a Claude Code plugin that puts learning first by guiding you through design checkpoints before AI implements code, so you understand the architecture and tradeoffs while building.",
+      "topicTag": "GitHub Repos",
+      "modelUsed": "Claude Code",
+      "builtBy": "nykooi1",
+      "endUser": "Aspiring engineers, junior developers, and experienced engineers exploring unfamiliar stacks who want to learn software design while building",
+      "toolsUsed": [
+        "Claude Code",
+        "Python 3"
+      ],
+      "costStructure": "Free (MIT license); requires Claude Code access",
+      "howItWorks": "The plugin adds structured checkpoints (Build, Design, Implementation) into Claude Code sessions. At each checkpoint, Claude asks you to reason through the problem in plain English, proposes a design, and only writes code after you confirm. It stores your learning notes and project map in a local .vibe-wise directory, adapts teaching depth to your experience level (Beginner/Intermediate/Advanced), and explains every implementation with tests and diagrams.",
+      "inputNeeded": "Project requirements or existing codebase; answers to design checkpoints in plain English",
+      "outputGiven": "Implemented code with explanations, passing tests, and learning notes stored in .vibe-wise/ directory",
+      "workflow": [
+        "Add VibeWise marketplace in Claude Code",
+        "Install vibe-wise plugin",
+        "Enable auto-update and restart Claude Code",
+        "Run setup and choose experience level",
+        "Ask Claude to build a feature",
+        "Work through Build, Design, and Implementation checkpoints"
+      ],
+      "useCases": [
+        "Learning to design a notes app with folder relationships and deletion logic",
+        "Exploring an unfamiliar repository with guided system mapping",
+        "Practicing software architecture decisions with AI-assisted tradeoff analysis"
+      ],
+      "integrations": "Claude Code",
+      "subscriptionsRequired": "No subscription needed for plugin; requires Claude Code access",
+      "readingTime": 1,
+      "url": "https://github.com/nykooi1/vibe-wise",
+      "source": {
+        "name": "GitHub",
+        "url": "https://github.com"
+      },
+      "author": "nykooi1",
+      "published": "2026-09-29",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "tools-2026-10-02-television-open-source-gui-for-any-agent-harness",
+      "category": "tools",
+      "schema": 3,
+      "title": "Television – open-source GUI for any agent harness",
+      "summary": "Television gives you and your agent a shared visual workspace for creating, organizing, and revisiting artifacts — cards, interactive views, or web pages — across persistent channels. It works with any agent harness (Claude Code, Codex, OpenCode, etc.) and runs locally via a CLI/server plus a macOS client (browser fallback).",
+      "topicTag": "Free AI Tools",
+      "modelUsed": "Whatever inference provider your agent harness already uses",
+      "builtBy": "Telepath team (telepath.computer)",
+      "endUser": "Solo devs and small teams using agent harnesses who want a persistent, organized visual workspace for agent-generated artifacts",
+      "toolsUsed": [
+        "Television CLI",
+        "Television server",
+        "Television macOS client",
+        "Agent harness (Claude Code, Codex, Hermes, OpenClaw, Pi, OpenCode, etc.)"
+      ],
+      "costStructure": "Free (open source)",
+      "howItWorks": "A lightweight CLI and server install on the machine running your agent harness (Linux or macOS). The server communicates with a macOS client app (or browser) that displays artifacts. You equip your agent with 'skills' — reusable instructions — so it can create and update artifacts on your Television screen. Artifacts persist in channels and remain fully editable through continued agent conversation.",
+      "inputNeeded": "An agent harness that can run commands and write files; skills definitions for artifact types",
+      "outputGiven": "Persistent, themeable visual artifacts (cards, interactive views, web pages) organized in channels, editable via continued agent chat",
+      "workflow": [
+        "Install Television CLI and server on agent machine",
+        "Launch macOS client app (or open browser version)",
+        "Add skills to your agent harness configuration",
+        "Chat with your agent normally",
+        "Agent creates/updates artifacts on Television screen",
+        "Organize artifacts into channels and revisit anytime"
+      ],
+      "useCases": [
+        "Pin status cards and checklists from coding agents for quick reference",
+        "Build and iterate on small web apps or dashboards with agent assistance",
+        "Organize research, specs, and prototypes across persistent project channels"
+      ],
+      "hardwareRequirements": "Linux or macOS for CLI/server; macOS for native client (browser fallback available)",
+      "integrations": "Any agent harness that can execute commands and write files",
+      "subscriptionsRequired": "No subscription needed",
+      "readingTime": 1,
+      "url": "https://television.run/",
+      "discussion": "https://news.ycombinator.com/item?id=49939817",
+      "source": {
+        "name": "television.run",
+        "url": "https://television.run"
+      },
+      "author": "stlhood",
+      "published": "2026-10-02",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "tools-2026-10-02-pi-codex-connectors-use-codex-plugins-inside-pi",
+      "category": "tools",
+      "schema": 3,
+      "title": "Pi Codex Connectors: Use Codex Plugins Inside Pi",
+      "summary": "A Pi extension that exposes all Codex (ChatGPT) connectors and direct web search to any Pi model through a unified three-tool interface, letting you call hundreds of external tools without leaving Pi.",
+      "topicTag": "Free AI Tools",
+      "builtBy": "wileai",
+      "endUser": "Pi users who want to access Codex connectors and web search from their local models",
+      "toolsUsed": [
+        "Pi",
+        "Codex CLI",
+        "Node.js",
+        "npm:@wileai/pi-codex-connector"
+      ],
+      "costStructure": "Free (open source npm package; requires ChatGPT account with Codex/connectors access)",
+      "howItWorks": "The extension starts a local Codex app-server on first use, which owns your ChatGPT login and connector credentials. It builds a catalog of available connectors and their tools via three unified tools (codex_connectors, codex_connector_schema, codex_connector_call) instead of exposing hundreds of individual schemas. Tools execute through the app-server's MCP interface without running a Codex model turn. Direct web search uses Codex's alpha/search endpoint with your access token, offering cached, indexed, or live retrieval modes.",
+      "inputNeeded": "Codex login with connected connectors; Pi with Node.js 22.19+; user queries for connectors or web search",
+      "outputGiven": "Connector tool results or web search results (with citations) inserted into the Pi model's context",
+      "workflow": [
+        "Install extension via 'pi install npm:@wileai/pi-codex-connector'",
+        "Run 'codex login' to authenticate with ChatGPT account",
+        "Start Pi and run '/codex-connectors' to discover available tools",
+        "Call 'codex_connector_call' with tool name and JSON arguments",
+        "Or use 'codex_web_search' with query parameters for web search"
+      ],
+      "useCases": [
+        "Call GitHub, Linear, Notion, or other connected Codex tools from a local Pi model",
+        "Search the web with cached, indexed, or live retrieval modes without leaving Pi",
+        "Use hundreds of Codex connectors through a unified three-tool interface"
+      ],
+      "hardwareRequirements": "Runs on any machine with Node.js 22.19+ and Pi installed",
+      "integrations": "Codex connectors (GitHub, Linear, Notion, etc.), Codex web search endpoint",
+      "subscriptionsRequired": "ChatGPT account with Codex/connectors access (free tier available)",
+      "readingTime": 1,
+      "url": "https://github.com/wileai/pi-codex-connectors",
+      "discussion": "https://news.ycombinator.com/item?id=49929381",
+      "source": {
+        "name": "github.com",
+        "url": "https://github.com"
+      },
+      "author": "alexandroskyr",
+      "published": "2026-10-02",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "tools-2026-09-28-dasp-durable-actor-session-protocol-for-persiste",
+      "category": "tools",
+      "schema": 3,
+      "title": "DASP: Durable Actor Session Protocol for persistent agent sessions",
+      "summary": "A language-agnostic protocol specification for durable actor sessions that survive disconnections, enabling multiple clients to share session history and resume work from saved outcomes.",
+      "topicTag": "Free AI Tools",
+      "modelUsed": "None (protocol specification, not model-dependent)",
+      "builtBy": "Author of Jido (Elixir Actor & Agent SDK)",
+      "endUser": "Builder teams implementing durable, multi-client agent servers and clients",
+      "toolsUsed": [
+        "Jido (Elixir SDK)",
+        "Elixir",
+        "TypeScript"
+      ],
+      "costStructure": "Free",
+      "howItWorks": "Clients connect to a DASP server to open or resume actor sessions. Commands are submitted with stable IDs; the server saves admission receipts and final outcomes separately. Ordered updates are retained after disconnect, allowing clients to reconnect and read missed events from their last applied cursor. Multiple clients (web, CLI, services) can share one session with identical history.",
+      "inputNeeded": "Protocol-compliant client implementation and a DASP server (Elixir reference implementation planned)",
+      "outputGiven": "Persistent actor sessions with command receipts, saved outcomes, ordered update history, and connection recovery",
+      "workflow": [
+        "Open or resume a session via session.open",
+        "Submit commands with stable IDs",
+        "Receive admission receipt from server",
+        "Read saved outcome (completed, failed, cancelled, uncertain)",
+        "On reconnect, read updates after last applied cursor",
+        "Share session across multiple clients with same history"
+      ],
+      "useCases": [
+        "Long-running agent tasks that survive network interruptions",
+        "Multi-device collaboration on a single agent session",
+        "CLI and web UI sharing the same agent workflow state"
+      ],
+      "hardwareRequirements": "Runs on any hardware supporting Elixir/TypeScript runtime",
+      "integrations": "Jido Elixir ecosystem (planned server), custom transports and storage",
+      "subscriptionsRequired": "No subscription needed",
+      "readingTime": 1,
+      "url": "https://dasp-protocol.github.io/dasp/",
+      "discussion": "https://news.ycombinator.com/item?id=49877270",
+      "source": {
+        "name": "dasp-protocol.github.io",
+        "url": "https://dasp-protocol.github.io"
+      },
+      "author": "mikehostetler",
+      "published": "2026-09-28",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "general-2026-10-04-scm-local-ai-search-for-every-photo-and-video-fr",
+      "category": "general",
+      "schema": 3,
+      "title": "SCM: Local AI search for every photo and video frame on macOS",
+      "summary": "SCM (Screen Memories) is a macOS app that lets you search your entire photo and video library using natural language, with zero cloud uploads. It runs vision, OCR, and speech models locally on your Mac to find scenes, text, and spoken words inside videos.",
+      "topicTag": "General",
+      "builtBy": "allenv0",
+      "endUser": "Mac users with large personal photo/video libraries who want private, offline semantic search without uploading to cloud services",
+      "toolsUsed": [
+        "Electron",
+        "React",
+        "Bun",
+        "ONNX Runtime",
+        "ffmpeg",
+        "llama.cpp",
+        "Tesseract",
+        "Whisper"
+      ],
+      "costStructure": "Free",
+      "howItWorks": "You point SCM at folders of photos and videos. It watches those folders, extracts embeddings for each image and video frame using a local CLIP or SigLIP model, runs Tesseract OCR on every frame, and transcribes audio with Whisper. Search queries are embedded and matched against the local index; results show thumbnails with timecodes for video scenes, highlighted OCR matches, or exact dialogue snippets. An optional llama.cpp sidecar can chat over the extracted evidence with citations.",
+      "inputNeeded": "Folders of photos and videos on macOS (watched folders auto-import)",
+      "outputGiven": "Semantic search results across files, video scenes with timecodes, OCR text matches with highlighted boxes, exact dialogue transcripts with seekable snippets, and optional cited LLM answers over extracted evidence",
+      "workflow": [
+        "Install via Homebrew or build from source",
+        "Grant folder access and select libraries to watch",
+        "Wait for initial model downloads (~435 MB vision, ~150 MB Whisper, ~17 MB OCR packs)",
+        "App indexes files: embeds images, segments videos, runs OCR, transcribes audio",
+        "Search by natural language, OCR text, or exact dialogue; filter by saved tabs",
+        "Open results to jump to exact video moment or view matched image"
+      ],
+      "useCases": [
+        "Find a video clip by describing a scene (\"dog jumping in snow\") and jump straight to that moment",
+        "Locate a screenshot containing a specific error message or email address via OCR search",
+        "Search spoken words in recorded meetings or lectures without cloud transcription",
+        "Ask a local LLM questions about your media library with citations to source frames"
+      ],
+      "hardwareRequirements": "Apple Silicon Mac, macOS 12+; 8 GB RAM minimum for default models, more for larger LLMs",
+      "integrations": "None (fully local, no cloud services)",
+      "subscriptionsRequired": "No subscription needed",
+      "readingTime": 2,
+      "url": "https://github.com/allenv0/SCM",
+      "discussion": "https://news.ycombinator.com/item?id=49952111",
+      "source": {
+        "name": "github.com",
+        "url": "https://github.com"
+      },
+      "author": "allenleee",
+      "published": "2026-10-04",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "general-2026-10-03-google-maps-scraper-mcp-server",
+      "category": "general",
+      "schema": 3,
+      "title": "Google Maps Scraper MCP Server",
+      "summary": "A remote MCP server that lets AI agents search Google Maps for up to 20 businesses and receive structured listing data — addresses, contacts, ratings, review counts — via a single authenticated HTTP endpoint.",
+      "topicTag": "General",
+      "modelUsed": "Any MCP-compatible AI agent (Claude Code, Cursor, VS Code, Codex, etc.)",
+      "builtBy": "gmapscrawl.com team",
+      "endUser": "Developers building AI agents that need live local business data for prospecting, market analysis, or CRM enrichment",
+      "toolsUsed": [
+        "Model Context Protocol (MCP)",
+        "Streamable HTTP transport",
+        "Google Maps business search"
+      ],
+      "costStructure": "Paid API entitlement required for live data; test credentials with simulated fixtures available free",
+      "howItWorks": "The server exposes a single MCP tool, search_google_maps, over stateless Streamable HTTP at https://gmapscrawl.com/api/mcp. Clients authenticate with a Bearer API key, send a keyword and location, and receive up to 20 businesses as structured JSON. The MCP protocol handles initialization and capability negotiation automatically.",
+      "inputNeeded": "Search keyword and location (e.g., \"coffee shops in Seattle\")",
+      "outputGiven": "Structured JSON with up to 20 businesses including names, addresses, phone numbers, websites, ratings, review counts, and categories",
+      "workflow": [
+        "Create API key at gmapscrawl.com",
+        "Add server to .mcp.json with Bearer auth header",
+        "Set GMSCRAPER_API_KEY in client environment",
+        "Launch MCP-compatible client (Claude Code, Cursor, etc.)",
+        "Ask agent to search businesses by keyword and location",
+        "Receive structured JSON results in the conversation"
+      ],
+      "useCases": [
+        "Build targeted prospect lists for sales outreach",
+        "Compare ratings and categories across local competitors",
+        "Enrich CRM records with current business contact details"
+      ],
+      "hardwareRequirements": "Runs on any machine with an MCP-compatible client; no local GPU required",
+      "integrations": "Claude Code, Cursor, VS Code, Codex, any MCP client supporting remote HTTP with custom headers",
+      "subscriptionsRequired": "API entitlement (cloud service) required; standard Online subscription does not include MCP access",
+      "readingTime": 1,
+      "url": "https://gmapscrawl.com/google-maps-scraper-mcp",
+      "discussion": "https://news.ycombinator.com/item?id=49940653",
+      "source": {
+        "name": "gmapscrawl.com",
+        "url": "https://gmapscrawl.com"
+      },
+      "author": "qwikhost",
+      "published": "2026-10-03",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "general-2026-10-01-janus-go-binary-that-runs-gguf-models-via-vulkan",
+      "category": "general",
+      "schema": 3,
+      "title": "Janus – Go binary that runs GGUF models via Vulkan on AMD/Intel/Nvidia",
+      "summary": "Janus is a single Go binary that runs local GGUF models via llama.cpp with Vulkan acceleration on AMD, Intel, and Nvidia GPUs, exposing an OpenAI-compatible API with hot-swap model support and zero external dependencies.",
+      "topicTag": "General",
+      "modelUsed": "llama.cpp (Vulkan backend) running any GGUF model",
+      "builtBy": "Vibra-Ingenn",
+      "endUser": "Developers who want a local OpenAI-compatible LLM server without Python, Docker, or Ollama",
+      "toolsUsed": [
+        "Go 1.22+",
+        "llama.cpp",
+        "Vulkan SDK",
+        "Git"
+      ],
+      "costStructure": "Free (MIT license)",
+      "howItWorks": "Janus compiles to a standalone executable that loads llama.cpp through a Vulkan backend (or CPU fallback). It reads GGUF models from a local folder, auto-detects chat templates from model metadata, and serves an OpenAI-compatible REST API on localhost:8990. Models can be swapped at runtime via a dedicated endpoint without restarting the server.",
+      "inputNeeded": "A GGUF model file placed in the models/ folder and a .env configuration file",
+      "outputGiven": "OpenAI-compatible API at http://127.0.0.1:8990/v1 with /v1/chat/completions, /v1/models, streaming, and model management endpoints",
+      "workflow": [
+        "Clone repository and run build script",
+        "Download a GGUF model into models/ folder",
+        "Configure .env with model path and backend",
+        "Run janus executable",
+        "Call API from any OpenAI-compatible client"
+      ],
+      "useCases": [
+        "Run local LLMs in Cursor or Cline via OpenAI-compatible base URL",
+        "Hot-swap between different quantized models for testing",
+        "Script local inference with curl or PowerShell without Python environment"
+      ],
+      "hardwareRequirements": "Vulkan-capable GPU recommended (AMD/Intel/Nvidia); CPU fallback supported; 2–8 GB disk per model plus ~50 MB for binary",
+      "integrations": "Cursor, Cline, any OpenAI-compatible client",
+      "subscriptionsRequired": "No subscription needed",
+      "readingTime": 1,
+      "url": "https://github.com/Vibra-Ingenn/Janus",
+      "discussion": "https://news.ycombinator.com/item?id=49926773",
+      "source": {
+        "name": "github.com",
+        "url": "https://github.com"
+      },
+      "author": "Maverick617",
+      "published": "2026-10-01",
+      "official": false,
+      "likes": 0,
+      "dislikes": 0,
+      "image": null
+    },
+    {
+      "id": "general-2026-10-01-premortem-ai-agents-that-red-team-your-startup-i",
+      "category": "general",
+      "schema": 3,
+      "title": "Premortem – AI agents that red-team your startup idea",
+      "summary": "Six specialized AI agents simultaneously critique a startup idea across market, tech, competition, unit economics and more, while a seventh synthesizer compiles their findings into a premortem memo in under 90 seconds.",
+      "topicTag": "General",
+      "endUser": "Founders and early-stage teams validating or stress-testing startup ideas before building",
+      "howItWorks": "User pastes a startup idea. Six AI agents run in parallel, each attacking a different dimension — market, tech, competition, unit economics, and others. A seventh synthesizer agent aggregates their outputs into a single premortem memo. The full cycle averages under 90 seconds.",
+      "inputNeeded": "A text description of the startup idea",
+      "outputGiven": "A premortem memo synthesizing critiques from six analytical perspectives",
+      "workflow": [
+        "Paste startup idea into the input box",
+        "Six agents analyze in parallel across different dimensions",
+        "Synthesizer agent compiles findings into a memo",
+        "Receive the premortem report"
+      ],
+      "useCases": [
+        "Validate a startup concept before committing resources",
+        "Identify blind spots in business model or unit economics",
+        "Stress-test competitive positioning and market assumptions"
+      ],
+      "readingTime": 1,
+      "url": "https://premortem.site",
+      "discussion": "https://news.ycombinator.com/item?id=49926691",
+      "source": {
+        "name": "premortem.site",
+        "url": "https://premortem.site"
+      },
+      "author": "ahoskins",
+      "published": "2026-10-01",
       "official": false,
       "likes": 0,
       "dislikes": 0,
       "image": null
     }
+  ],
+  "skipped": [
+    "https://docs.claude.com/en/release-notes/overview#september-30-2026",
+    "https://pipod.dev/",
+    "https://hn.watch/",
+    "https://rhun.app/",
+    "https://strata.do/",
+    "https://jonclegg.github.io/pacman-bakeoff/",
+    "https://www.openappa.com/",
+    "https://github.com/PhreshOS/system",
+    "https://github.com/graphene-data/graphene"
   ]
 }

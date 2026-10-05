@@ -120,6 +120,8 @@
   let votes = {};
   try { votes = JSON.parse(localStorage.getItem(VOTES_KEY)) || {}; } catch (e) { votes = {}; }
   const saveVotes = () => { try { localStorage.setItem(VOTES_KEY, JSON.stringify(votes)); } catch (e) { /* storage blocked */ } };
+  // The six Cool News sections, in tab order. data/news.json's items carry one of these as `category`.
+  const CATS = ['models', 'claude', 'projects', 'tools', 'repos', 'general'];
   const news = { items: [], cat: 'models', ready: false };
   const grid = $('[data-news-grid]'), readerGrid = $('[data-reader-grid]'), status = $('[data-news-status]');
   const fmtDate = iso => {
@@ -127,69 +129,113 @@
     return isNaN(d) ? esc(iso) : d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
-  // ---------- Placeholder art ----------
-  // Until the pipeline generates a real image for a story (item.image), each card gets its own
-  // artwork, drawn from the story's id: soft candy light over a gradient, with a network motif
-  // (every topic here is AI/dev-tooling, so one consistent motif reads better than a forced
-  // per-category icon set).
-  const hash = s => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
-  const rng = seed => () => ((seed = Math.imul(seed ^ (seed >>> 15), 2246822507) ^ Math.imul(seed ^ (seed >>> 13), 3266489909), (seed ^= seed >>> 16) >>> 0) / 4294967296);
-  const PAL = [['#ff7a2f', '#ff4f9a'], ['#ff9f45', '#ef4a76'], ['#ff6d34', '#b28dff'], ['#ffb347', '#ff5f8a']];
-  const artCache = new Map();
-  function art(item) {
-    if (artCache.has(item.id)) return artCache.get(item.id);
-    const r = rng(hash(item.id)), W = 400, H = 300;
-    const pal = PAL[Math.floor(r() * PAL.length)];
-    const blobs = Array.from({ length: 4 }, (_, k) => `<circle cx="${(r() * W).toFixed(0)}" cy="${(r() * H).toFixed(0)}" r="${(60 + r() * 90).toFixed(0)}" fill="${['#fff2d7', '#ffd2da', pal[0], '#ffe4d9'][k]}" opacity="${(.35 + r() * .4).toFixed(2)}"/>`).join('');
-    const pts = Array.from({ length: 8 }, () => [70 + r() * 260, 50 + r() * 200]);
-    const lines = [];
-    pts.forEach((p, i) => pts.forEach((q, j) => { if (j > i && Math.hypot(p[0] - q[0], p[1] - q[1]) < 150) lines.push(`<line x1="${p[0].toFixed(0)}" y1="${p[1].toFixed(0)}" x2="${q[0].toFixed(0)}" y2="${q[1].toFixed(0)}"/>`); }));
-    const motif = `<g stroke="#fff6ea" stroke-width="2.5" opacity=".75">${lines.join('')}</g>`
-      + pts.map((p, i) => `<circle cx="${p[0].toFixed(0)}" cy="${p[1].toFixed(0)}" r="${i ? 7 : 16}" fill="#fff6ea"/>`).join('');
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${pal[0]}"/><stop offset="1" stop-color="${pal[1]}"/></linearGradient><filter id="b" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="34"/></filter></defs><rect width="${W}" height="${H}" fill="url(#g)"/><g filter="url(#b)">${blobs}</g>${motif}</svg>`;
-    const uri = `data:image/svg+xml,${encodeURIComponent(svg)}`;
-    artCache.set(item.id, uri);
-    return uri;
+  // ---------- Use-case badges ----------
+  // Each story is filed under the field it's useful in (the pipeline's `domain`, or worked out here from
+  // its text). The badge — the field's gradient, a line icon and its name — leads every row and article.
+  const DOMAINS = [
+    ['logistics', 'Logistics', '#ff8a3d', '#b4330c', /logistic|freight|shipping|supply.?chain|warehouse|deliver|fleet|courier/g, 'M3 7h11v9H3zM14 10h4l3 3v3h-7M7 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4z'],
+    ['health', 'Health & Medicine', '#ff6f91', '#c8103e', /health|medic|clinic|patient|fitness|workout|deadlift|exercise|doctor|biolog|drug|hospital|wellbeing/g, 'M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10zM5 12h4l1.5-3 3 6 1.5-3h4'],
+    ['defense', 'Army & Defense', '#7b8a4a', '#2f3a1f', /military|army|defen[cs]e|warfare|missile|soldier|battlefield/g, 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM12 8l1.2 2.5 2.8.4-2 2 .5 2.8L12 14.4l-2.5 1.3.5-2.8-2-2 2.8-.4z'],
+    ['security', 'Cybersecurity', '#4f7cff', '#1e1b4b', /secur|vulnerab|exploit|malware|guardrail|sandbox|privacy|pentest|threat|attack|kill every/g, 'M6 11h12v10H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3M12 15v2'],
+    ['finance', 'Finance', '#14b88a', '#065f46', /financ|trading|stock|invoice|accounting|bank|crypto|payment|budget|startup idea|investor/g, 'M4 20h16M6 16l4-5 3 3 5-7M15 7h3v3'],
+    ['education', 'Education', '#f5a524', '#b45309', /educat|learn|student|kids|teach|course|tutor|school|math|classroom/g, 'M2 9l10-5 10 5-10 5zM6 11v5c3 2 9 2 12 0v-5'],
+    ['creative', 'Creative & Media', '#c084fc', '#db2777', /video|image|photo|music|\bart\b|design|animation|3d model|lego|\bcad\b|creative|audio|ui design|drawing/g, 'M12 3a9 9 0 1 0 0 18c1.5 0 2-1 2-2s-1-2 0-3h2a5 5 0 0 0 5-5c0-4.5-4-8-9-8zM7.5 12h.01M9 7.5h.01M14 7h.01M17 10.5h.01'],
+    ['games', 'Gaming', '#8b5cf6', '#4c1d95', /\bgames?\b|gaming|\bmods?\b|pac-?man|player|steam/g, 'M7 9h10a4 4 0 0 1 3.9 4.9l-.6 2.6a2 2 0 0 1-3.5.8L15 15H9l-1.8 2.3a2 2 0 0 1-3.5-.8l-.6-2.6A4 4 0 0 1 7 9zM8 11v3M6.5 12.5h3M15.5 12h.01M17.5 13.5h.01'],
+    ['research', 'Science & Research', '#14b8d4', '#155e75', /research|paper|science|scientific|benchmark|dataset|academic/g, 'M9 3h6M10 3v6L4 19a1.5 1.5 0 0 0 1.3 2h13.4a1.5 1.5 0 0 0 1.3-2L14 9V3M7 15h10'],
+    ['data', 'Data & Analytics', '#0ea5e9', '#6d28d9', /\bdata\b|analytics|\bsql\b|dashboard|semantic layer|spreadsheet|metrics|\bbi\b/g, 'M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3'],
+    ['language', 'Language & Writing', '#f472b6', '#9d174d', /translat|language|japanese|writing|\bpdf\b|reading|grammar/g, 'M4 5h8M8 3v2M6 5c0 4 2 7 6 9M10 5c0 4-2 7-6 9M13 21l4-10 4 10M14.5 17h5'],
+    ['productivity', 'Productivity', '#fb923c', '#e0306a', /meeting|notes|calendar|email|workspace|productiv|knowledge|search|record|assistant|coworker/g, 'M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2'],
+    ['software', 'Software Development', '#ff6d34', '#7c2d12', /\bcode|coding|developer|agent|\bcli\b|repo|\bapi\b|programm|software|\bide\b|\bgit|plugin|harness|router/g, 'M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14'],
+  ];
+  const domainCache = new Map();
+  function domainOf(it) {
+    if (domainCache.has(it.id)) return domainCache.get(it.id);
+    const named = it.domain && DOMAINS.find(d => d[0] === it.domain || d[1].toLowerCase() === String(it.domain).toLowerCase());
+    let best = named || null;
+    if (!best) {
+      const text = [it.title, it.summary, it.howItWorks, it.endUser, ...(it.useCases || [])].filter(Boolean).join(' ').toLowerCase();
+      let top = 0;
+      for (const d of DOMAINS) {
+        const n = (text.match(d[4]) || []).length * (d[0] === 'software' ? .6 : 1);   // "software" is the fallback, so it wins ties last
+        if (n > top) { top = n; best = d; }
+      }
+    }
+    best = best || DOMAINS[DOMAINS.length - 1];
+    domainCache.set(it.id, best);
+    return best;
   }
 
   const THUMB_UP = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M7 11v9H4v-9zM7 11l4-7a2 2 0 0 1 3 2l-1 4h5.5a2 2 0 0 1 2 2.3l-1.2 6A2 2 0 0 1 17.3 20H7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
   const THUMB_DOWN = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M17 13V4h3v9zM17 13l-4 7a2 2 0 0 1-3-2l1-4H5.5a2 2 0 0 1-2-2.3l1.2-6A2 2 0 0 1 6.7 4H17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
   const VERIFIED = '<svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 1.8l2.4 1.8 3-.2 1 2.8 2.6 1.6-.7 2.9 1.2 2.8-2.2 2 .1 3-2.9.8-1.5 2.6-2.9-.8-2.6 1.4-2-2.2-3-.3-.5-3L1.6 15l1.3-2.7-.6-3 2.7-1.4.9-2.9 3 .1z" fill="var(--flare)"/><path d="M8 12.2l2.7 2.7L16.2 9.4" fill="none" stroke="var(--on-flare)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const count = (it, k) => (it[k] || 0) + (votes[it.id] === (k === 'likes' ? 1 : -1) ? 1 : 0);
-  function card(it, glass) {
+  // One story = one row of a details list (no pictures — there are none to show): the use-case badge, the
+  // headline with a one-line summary and a meta line (source, date, votes), and Read. Rows are compact, so
+  // the section holds many stories; it shows as many as fit the screen without scrolling (fitRows) and
+  // "View all" opens the rest. `.news-card` stays on the row as the hook for votes, opening and hover.
+  function card(it, full) {
     const v = votes[it.id] || 0;
-    const img = it.image ? esc(it.image) : art(it);
-    const teaser = it.howItWorks || it.summary || '';
+    const [key, label, c1, c2, , icon] = domainOf(it);
+    const teaser = it.summary || it.howItWorks || '';
     return `
-      <article class="news-card${glass ? ' news-card--glass' : ''}" data-id="${esc(it.id)}">
-        <div class="news-card__media"><img src="${img}" alt="" loading="lazy" decoding="async">${it.sample ? '<span class="news-card__tag">Sample</span>' : ''}</div>
-        <div class="news-card__body">
-          <p class="news-card__meta"><a href="${esc(it.source.url)}" target="_blank" rel="noopener">${esc(it.source.name)}</a><span aria-hidden="true">·</span><time datetime="${esc(it.published)}">${fmtDate(it.published)}</time></p>
-          <h3 class="news-card__title"><button type="button" class="news-card__title-btn" data-article-open>${esc(it.title)}</button>${it.official ? `<span class="news-card__check" role="img" aria-label="Official source" title="Official source${it.sample ? ' (sample)' : ''}">${VERIFIED}</span>` : ''}</h3>
-          <p class="news-card__sum">${esc(teaser)}</p>
-          <p class="news-card__by">By ${esc(it.author)} · <a href="${esc(it.source.url)}" target="_blank" rel="noopener">Original report ↗</a></p>
-          <div class="news-card__foot">
-            <button class="vote" type="button" data-vote="1" aria-pressed="${v === 1}" aria-label="Like">${THUMB_UP}<b data-live>${count(it, 'likes')}</b></button>
-            <button class="vote" type="button" data-vote="-1" aria-pressed="${v === -1}" aria-label="Dislike">${THUMB_DOWN}<b data-live>${count(it, 'dislikes')}</b></button>
-            <button class="news-card__open" type="button" data-article-open>Read article <span aria-hidden="true">+</span></button>
+      <article class="news-card news-row${full ? ' news-row--full' : ''}" data-id="${esc(it.id)}">
+        <span class="news-row__domain news-row__domain--${key}" style="--a:${c1};--b:${c2}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="${icon}"/></svg><b>${esc(label)}</b>
+        </span>
+        <div class="news-row__main">
+          <h3 class="news-row__title"><button type="button" class="news-card__title-btn" data-article-open>${esc(it.title)}</button>${it.official ? `<span class="news-card__check" role="img" aria-label="Official source" title="Official source">${VERIFIED}</span>` : ''}</h3>
+          <p class="news-row__sum">${esc(teaser)}</p>
+          <div class="news-row__meta">
+            <a href="${esc(it.url || it.source.url)}" target="_blank" rel="noopener">${esc(it.source.name)} ↗</a><span aria-hidden="true">·</span><time datetime="${esc(it.published)}">${fmtDate(it.published)}</time>
+            <span class="news-row__votes">
+              <button class="vote" type="button" data-vote="1" aria-pressed="${v === 1}" aria-label="Like">${THUMB_UP}<b data-live>${count(it, 'likes')}</b></button>
+              <button class="vote" type="button" data-vote="-1" aria-pressed="${v === -1}" aria-label="Dislike">${THUMB_DOWN}<b data-live>${count(it, 'dislikes')}</b></button>
+            </span>
           </div>
         </div>
+        <button class="news-card__open" type="button" data-article-open>Read <span aria-hidden="true">→</span></button>
       </article>`;
   }
   const inCat = () => news.items.filter(it => it.category === news.cat).sort((a, b) => (a.published < b.published ? 1 : -1));
+  const moreBtn = $('[data-news-more]');
+  const moreLabel = moreBtn && $('span', moreBtn);
   function renderNews(live) {
     if (!grid) return;
     const list = inCat();
     grid.innerHTML = news.ready
-      ? (list.length ? list.slice(0, 4).map(it => card(it)).join('') : '<p class="news__empty">No stories here yet.</p>')
-      : Array.from({ length: 4 }, () => '<div class="news-card news-card--ghost" aria-hidden="true"><div class="news-card__media"></div><div class="news-card__body"><i></i><i></i><i></i></div></div>').join('');
+      ? (list.length ? list.map(it => card(it)).join('') : '<p class="news__empty">No stories here yet.</p>')
+      : Array.from({ length: 5 }, () => '<div class="news-card news-row news-row--ghost" aria-hidden="true"><i></i><i></i><i></i></div>').join('');
+    fitRows();
     if (live) refresh(grid);
   }
+  // Show only the rows that fit above the section's bottom margin (and the "View all" button), so the
+  // section never needs a vertical scroll; the rest live in the reader.
+  function fitRows() {
+    if (!grid) return;
+    const rows = [...grid.children];
+    rows.forEach(r => { r.hidden = false; });
+    const panel = grid.closest('.panel'), inner = grid.closest('.panel__inner');
+    if (!panel || !inner) return;
+    const topIn = el => { let y = 0; for (let n = el; n && n !== panel; n = n.offsetParent) y += n.offsetTop; return y; };
+    const padB = parseFloat(getComputedStyle(inner).paddingBottom) || 40;
+    const moreH = moreBtn ? moreBtn.offsetHeight + 16 : 0;
+    const limit = innerHeight - padB - moreH;
+    let shown = 0;
+    rows.forEach((r, i) => {
+      const fits = topIn(r) + r.offsetHeight <= limit;
+      if (!fits && i >= 2) r.hidden = true; else shown++;
+    });
+    const total = inCat().length;
+    if (moreLabel) moreLabel.textContent = total > shown ? `View all ${total}` : 'Open the reader';
+  }
+  let fitQueued = 0;
+  addEventListener('resize', () => { cancelAnimationFrame(fitQueued); fitQueued = requestAnimationFrame(() => { fitRows(); refresh(grid); }); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { fitRows(); refresh(grid); });
   function renderReader() {
     if (readerGrid) readerGrid.innerHTML = inCat().map(it => card(it, true)).join('');
   }
   function setCat(cat, live = true) {
-    if (!['models', 'claude', 'tools', 'projects', 'repos'].includes(cat)) return;
+    if (!CATS.includes(cat)) return;
     const changed = cat !== news.cat;
     news.cat = cat;
     $$('.news__tabs [data-cat]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.cat === cat)));
@@ -199,7 +245,7 @@
     const b = e.target.closest('[data-cat]');
     if (b) { ui(); setCat(b.dataset.cat); }
   }));
-  // the Models / Claude / Tools / Projects / Repos chips on the Home page pick the topic before flying to the news
+  // the topic chips on the Home page pick the topic before flying to the news
   $$('[data-news-cat]').forEach(b => b.addEventListener('click', () => setCat(b.dataset.newsCat)));
   // Likes and dislikes (remembered in this browser; a shared count needs the backend in docs/news-pipeline.md)
   document.addEventListener('click', e => {
@@ -225,14 +271,16 @@
     void b.offsetWidth;
     b.classList.add('is-pop');
   });
+  function setStatus(data) {
+    if (status) status.textContent = `Updated ${fmtDate(String(data.updated || '').slice(0, 10))} · stories from the past week`;
+  }
   renderNews(false);
   fetch(NEWS_URL, { cache: 'no-cache' })
     .then(r => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
     .then(data => {
       news.items = (data.items || []).filter(it => it && it.id && it.title && it.source);
       news.ready = true;
-      const samples = news.items.some(it => it.sample);
-      if (status) status.textContent = samples ? 'Sample stories · the live feed is coming soon' : `Updated ${fmtDate(String(data.updated || '').slice(0, 10))}`;
+      setStatus(data);
       renderNews(true);
     })
     .catch(() => {
@@ -265,8 +313,7 @@
       news.items = (data.items || []).filter(it => it && it.id && it.title && it.source);
       renderNews(true);
       if (reader.open) renderReader();
-      const samples = news.items.some(it => it.sample);
-      if (status) status.textContent = samples ? 'Sample stories · the live feed is coming soon' : `Updated ${fmtDate(String(data.updated || '').slice(0, 10))}`;
+      setStatus(data);
       return true;
     } catch (e) { return false; }
   }
@@ -298,9 +345,47 @@
       setTimeout(() => setRefreshLabel('Refresh', false), 4000);
     }, 8000);
   }
+  // Running locally (python serve.py), the dev server runs the pipeline itself with the key on this
+  // machine, so Refresh works without GitHub in the loop; hosted, it goes through the Worker below.
+  const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+  async function pullLocalNews() {
+    const res = await fetch(`${NEWS_URL}?_=${Date.now()}`, { cache: 'no-cache' });
+    const data = await res.json();
+    news.items = (data.items || []).filter(it => it && it.id && it.title && it.source);
+    renderNews(true);
+    if (reader.open) renderReader();
+    setStatus(data);
+  }
+  async function refreshLocally() {
+    setRefreshLabel('Finding stories…', true);
+    try {
+      const res = await fetch('/api/news/refresh', { method: 'POST' });
+      if (!res.ok) throw new Error(res.status);
+    } catch (e) {
+      setRefreshLabel('Run python serve.py to refresh', false);
+      setTimeout(() => setRefreshLabel('Refresh', false), 4000);
+      return;
+    }
+    const started = Date.now();
+    const tick = async () => {
+      let st;
+      try { st = await (await fetch('/api/news/status', { cache: 'no-store' })).json(); } catch (e) { st = null; }
+      if (st && st.state === 'running') {
+        const secs = Math.round((Date.now() - started) / 1000);
+        setRefreshLabel(secs < 20 ? 'Finding stories…' : `Writing articles… ${secs}s`, true);
+        setTimeout(tick, 3000);
+        return;
+      }
+      if (st && st.state === 'done') { await pullLocalNews(); setRefreshLabel('Refreshed', false); }
+      else setRefreshLabel('Run failed — see the server log', false);
+      setTimeout(() => setRefreshLabel('Refresh', false), 4000);
+    };
+    setTimeout(tick, 3000);
+  }
   if (refreshBtn) refreshBtn.addEventListener('click', async () => {
     if (refreshBtn.disabled) return;
     ui();
+    if (LOCAL) { refreshLocally(); return; }
     if (!NEWS_TRIGGER_URL) {
       setRefreshLabel('Not set up yet — see cloudflare/README.md', false);
       setTimeout(() => setRefreshLabel('Refresh', false), 4000);
@@ -322,27 +407,90 @@
     }
   });
 
+
+  // =========================================================
+  // Panels: every expanded panel (About sheets, an article, the news reader) grows out of the thing that
+  // opened it and folds back into it — the iOS app-open motion: the panel starts exactly over the source
+  // (moved, uniformly scaled, and clipped to the source's shape), then springs out to the dashboard frame
+  // on Apple's curve while its content fades up. Transform, clip and opacity only; a new open/close
+  // cancels whatever was still running, so rapid clicks never glitch.
+  // =========================================================
+  const SPRING = 'cubic-bezier(.32, .72, 0, 1)';
+  const running = new WeakMap();
+  function sourceFrame(panel, from) {
+    const to = panel.getBoundingClientRect();
+    const fr = from && from.isConnected ? from.getBoundingClientRect() : null;
+    const r = parseFloat(getComputedStyle(panel).borderTopLeftRadius) || 32;
+    if (!fr || fr.width < 4 || fr.bottom < 0 || fr.top > innerHeight || !from.getClientRects().length) {
+      return { transform: 'translate3d(0, 28px, 0) scale(.94)', clipPath: `inset(0 round ${r}px)`, opacity: 0 };
+    }
+    const s = Math.min(1, Math.max(fr.width / to.width, fr.height / to.height, .18));
+    const dx = fr.left + fr.width / 2 - (to.left + to.width / 2), dy = fr.top + fr.height / 2 - (to.top + to.height / 2);
+    // in the panel's own (unscaled) units the visible window is the source's size, centred
+    const ix = Math.max(0, (to.width - fr.width / s) / 2), iy = Math.max(0, (to.height - fr.height / s) / 2);
+    const fromR = (parseFloat(getComputedStyle(from).borderTopLeftRadius) || 20) / s;
+    return { transform: `translate3d(${dx}px, ${dy}px, 0) scale(${s})`, clipPath: `inset(${iy}px ${ix}px round ${fromR}px)`, opacity: 1 };
+  }
+  function morph(panel, from, open, done) {
+    const prev = running.get(panel);
+    if (prev) prev.forEach(a => a.cancel());
+    if (reduced || !panel.animate) { if (done) done(); return; }
+    const r = parseFloat(getComputedStyle(panel).borderTopLeftRadius) || 32;
+    const start = sourceFrame(panel, from);
+    const end = { transform: 'none', clipPath: `inset(0 round ${r}px)`, opacity: 1 };
+    const kids = [...panel.children];
+    const anims = open
+      ? [panel.animate([start, end], { duration: 640, easing: SPRING }),
+        ...kids.map(k => k.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 360, delay: 140, easing: 'ease-out', fill: 'backwards' }))]
+      : [panel.animate([end, start], { duration: 440, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'forwards' }),
+        ...kids.map(k => k.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: 'ease-in', fill: 'forwards' }))];
+    running.set(panel, anims);
+    // finish once, whichever comes first: the animation ending, or its duration elapsing (a backgrounded
+    // tab can hold an animation's clock, and a close must never leave a panel stuck on screen)
+    let fired = false;
+    const finish = () => {
+      if (fired) return;
+      fired = true;
+      if (running.get(panel) === anims) running.delete(panel);
+      if (done) done();
+      if (!open) anims.forEach(a => a.cancel());   // drop the held end state once the panel is hidden
+    };
+    anims[0].finished.then(finish).catch(() => {});
+    setTimeout(finish, (open ? 640 : 440) + 120);
+  }
+  // Inside a panel the wheel is eased the same way the page is (its own Lenis on the panel's scroller),
+  // so reading a long article scrolls as smoothly as the site itself.
+  function smoothScroll(el) {
+    if (!el || reduced || !window.Lenis) return null;
+    const l = new window.Lenis({ wrapper: el, content: el.firstElementChild || el, lerp: .1, smoothWheel: true, wheelMultiplier: .9 });
+    let id = requestAnimationFrame(function tick(t) { l.raf(t); id = requestAnimationFrame(tick); });
+    return { destroy() { cancelAnimationFrame(id); l.destroy(); } };
+  }
+
   // ---------- Full-screen reader ("View more") ----------
   const readerEl = $('#news-reader');
-  const reader = { open: false, last: null };
-  function openReader() {
+  const reader = { open: false, last: null, from: null, scroll: null };
+  function openReader(e) {
     if (!readerEl || reader.open) return;
     reader.open = true;
     reader.last = document.activeElement;
+    reader.from = e && e.currentTarget;
     renderReader();
     readerEl.hidden = false;
     $('.reader__scroll', readerEl).scrollTop = 0;
     overlay(true, { hideScene: true, onEscape: closeReader });
-    requestAnimationFrame(() => readerEl.classList.add('is-open'));
+    readerEl.classList.add('is-open');
+    morph(readerEl, reader.from, true);
+    reader.scroll = smoothScroll($('.reader__scroll', readerEl));
     setTimeout(() => { const c = $('[data-reader-close]', readerEl); if (c) c.focus({ preventScroll: true }); }, 60);
     ui();
   }
   function closeReader() {
     if (!reader.open) return;
     reader.open = false;
-    readerEl.classList.remove('is-open');
+    if (reader.scroll) { reader.scroll.destroy(); reader.scroll = null; }
     overlay(false);
-    setTimeout(() => { if (!reader.open) readerEl.hidden = true; }, reduced ? 0 : 520);
+    morph(readerEl, reader.from, false, () => { if (!reader.open) { readerEl.classList.remove('is-open'); readerEl.hidden = true; } });
     if (reader.last && reader.last.focus) reader.last.focus({ preventScroll: true });
   }
   $$('[data-news-more]').forEach(b => b.addEventListener('click', openReader));
@@ -353,119 +501,86 @@
   // fields — never raw HTML — so a rewrite can never smuggle markup through into the page.
   // Anything without these fields yet (samples, or a story the pipeline hasn't reached) falls
   // back to showing its card summary as a single line.
-  const CAT_NAMES = { models: 'Open Source Models', claude: 'Claude Updates', tools: 'Free AI Tools', projects: 'AI Projects', repos: 'GitHub Repos' };
-  // [label, field key, kind] — kind picks how the value renders. Order here is the order shown.
-  const TEMPLATE_FIELDS = [
-    ['End user', 'endUser', 'text'],
+  const CAT_NAMES = { models: 'Open Source AI Models', claude: 'Claude', projects: 'Cool AI Projects & Workflows', tools: 'Free Tools', repos: 'Top GitHub Repos of the Week', general: 'General Projects' };
+  // A field the source didn't cover is left out entirely: no "Not stated" / "N/A" rows, ever.
+  const EMPTY = /^\s*(none|n\/?a|not stated|not specified|not mentioned|not available|not applicable|unknown|unspecified|tbd|-+)\.?\s*$/i;
+  const present = v => Array.isArray(v) ? v.some(x => typeof x === 'string' && !EMPTY.test(x)) : typeof v === 'string' && v.trim() && !EMPTY.test(v);
+
+  // ---------- Workflow ----------
+  // The "Workflow" steps render as a flow of numbered chips joined by arrows that wraps to the panel's
+  // width, so every step stays at reading size however many there are.
+  const ARROW_R = '<svg class="wf__arrow" viewBox="0 0 20 12" aria-hidden="true"><path d="M1 6h16M12 1l5 5-5 5"/></svg>';
+  const workflowDiagram = steps => `<ol class="wf">${steps.map((x, i) => `<li class="wf__step"><span class="wf__n">${i + 1}</span>${esc(x)}</li>`).join(ARROW_R)}</ol>`;
+
+  // The article is laid out as a dashboard: a summary rail (the use-case art, the lede, the key facts and
+  // the link out) beside a grid of spec cards, so most stories fit on one screen with little scrolling.
+  const FACTS = [['Model', 'modelUsed'], ['Built by', 'builtBy'], ['Cost', 'costStructure'], ['Subscription', 'subscriptionsRequired'], ['Hardware', 'hardwareRequirements']];
+  const CARDS = [
+    ['How it works', 'howItWorks', 'text', true],
+    ['Who it’s for', 'endUser', 'text'],
+    ['What you give it', 'inputNeeded', 'text'],
+    ['What you get back', 'outputGiven', 'text'],
     ['Tools used', 'toolsUsed', 'list'],
-    ['Paid or free', 'costStructure', 'text'],
-    ['How it works', 'howItWorks', 'text'],
-    ['What input it needs', 'inputNeeded', 'text'],
-    ['What output it gives', 'outputGiven', 'text'],
-    ['Workflow', 'workflow', 'steps'],
     ['Use cases', 'useCases', 'list'],
-    ['Hardware requirements', 'hardwareRequirements', 'text'],
     ['Connects to', 'integrations', 'text'],
-    ['Subscriptions required', 'subscriptionsRequired', 'text'],
+    ['Tips to save tokens', 'tips', 'list', true],
   ];
-
-  // ---------- Workflow flowchart ----------
-  // No image API involved: the "Workflow" field is drawn as an actual flowchart (boxes + arrows),
-  // generated in the browser straight from the step text the pipeline already wrote. Free,
-  // instant, no key, no rate limit — reuses the same visual language as the About-me architecture
-  // diagram (.site-figure), with its own classes (.wf-*) so its per-node styling can't collide
-  // with that diagram's fixed layout.
-  function wrapLines(text, maxChars, maxLines) {
-    const words = String(text).split(/\s+/);
-    const lines = [];
-    let cur = '';
-    for (const w of words) {
-      const next = cur ? `${cur} ${w}` : w;
-      if (next.length > maxChars && cur) { lines.push(cur); cur = w; } else cur = next;
-    }
-    if (cur) lines.push(cur);
-    if (lines.length > maxLines) {
-      lines.length = maxLines;
-      lines[maxLines - 1] = lines[maxLines - 1].replace(/.{0,3}$/, '…');
-    }
-    return lines;
-  }
-  function workflowDiagram(steps) {
-    if (!Array.isArray(steps) || !steps.length) return '';
-    const MAX_NODES = 5;
-    const overflow = Math.max(0, steps.length - MAX_NODES);
-    const nodes = overflow > 0 ? [...steps.slice(0, MAX_NODES - 1), `+${overflow + 1} more step${overflow ? 's' : ''}`] : steps;
-    const n = nodes.length;
-    const boxW = 148, boxH = 96, gap = 40, padX = 20, padY = 26;
-    const W = padX * 2 + n * boxW + (n - 1) * gap;
-    const H = padY * 2 + boxH;
-    const cy = padY + boxH / 2;
-    let body = '';
-    nodes.forEach((step, i) => {
-      const x = padX + i * (boxW + gap);
-      const lines = wrapLines(step, 19, 3);
-      const startY = cy - ((lines.length - 1) * 8);
-      const tspans = lines.map((l, k) => `<tspan x="${x + boxW / 2}" dy="${k === 0 ? 0 : 16}">${esc(l)}</tspan>`).join('');
-      body += `<g class="wf-step">
-        <rect x="${x}" y="${padY}" width="${boxW}" height="${boxH}" rx="16"/>
-        <circle class="wf-num-bg" cx="${x + 24}" cy="${padY}" r="14"/>
-        <text class="wf-num" x="${x + 24}" y="${padY + 5}" text-anchor="middle">${i + 1}</text>
-        <text class="wf-text" x="${x + boxW / 2}" y="${startY}" text-anchor="middle">${tspans}</text>
-      </g>`;
-      if (i < n - 1) {
-        const x1 = x + boxW, x2 = x1 + gap - 8;
-        body += `<path class="wf-arrow" d="M${x1} ${cy} L${x2} ${cy}"/><path class="wf-arrow-head" d="M${x2 - 8} ${cy - 6} L${x2} ${cy} L${x2 - 8} ${cy + 6}z"/>`;
-      }
-    });
-    return `<figure class="site-figure workflow-fig"><svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${body}</svg></figure>`;
-  }
-
+  const clean = v => (Array.isArray(v) ? v.filter(x => typeof x === 'string' && !EMPTY.test(x)) : v);
   function renderTemplate(it) {
-    if (!it.howItWorks) return `<p>${esc(it.summary || '')}</p>`; // sample/legacy item with no template yet
-    const rows = TEMPLATE_FIELDS.map(([label, key, kind]) => {
-      const v = it[key];
-      if (!v || (Array.isArray(v) && !v.length)) return '';
-      const value = kind === 'list' ? `<ul class="article__list">${v.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`
-        : kind === 'steps' ? workflowDiagram(v) + `<ol class="article__list article__list--steps">${v.map(x => `<li>${esc(x)}</li>`).join('')}</ol>`
-        : `<p>${esc(v)}</p>`;
-      return `<div class="article__field"><p class="article__field-label">${esc(label)}</p>${value}</div>`;
+    const link = `<a class="article__original" href="${esc(it.url)}" target="_blank" rel="noopener">Open the original article <span aria-hidden="true">↗</span></a>`;
+    const facts = FACTS.filter(([, k]) => present(it[k])).map(([l, k]) => `<div><dt>${esc(l)}</dt><dd>${esc(it[k])}</dd></div>`).join('');
+    const aside = `<aside class="dash__aside">
+        ${(([key, label, c1, c2, , icon]) => `<span class="news-row__domain news-row__domain--lg" style="--a:${c1};--b:${c2}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${icon}"/></svg><b>${esc(label)}</b></span>`)(domainOf(it))}
+        ${it.topicTag ? `<span class="article__tag">${esc(it.topicTag)}</span>` : ''}
+        ${it.summary ? `<p class="article__lede">${esc(it.summary)}</p>` : ''}
+        ${facts ? `<dl class="dash__facts">${facts}</dl>` : ''}
+        ${link}
+      </aside>`;
+    const steps = clean(it.workflow);
+    const flow = present(steps) ? `<div class="article__field article__field--wide"><p class="article__field-label">Workflow</p>${workflowDiagram(steps)}</div>` : '';
+    const cards = CARDS.map(([label, key, kind, wide]) => {
+      const v = clean(it[key]);
+      if (!present(v)) return '';
+      const value = kind === 'list' ? `<ul class="article__list">${v.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : `<p>${esc(v)}</p>`;
+      return `<div class="article__field${wide ? ' article__field--wide' : ''}"><p class="article__field-label">${esc(label)}</p>${value}</div>`;
     }).join('');
-    const tag = it.topicTag ? `<span class="article__tag">${esc(it.topicTag)}</span>` : '';
-    const hero = `<img class="article__hero" src="${it.image ? esc(it.image) : art(it)}" alt="">`;
-    return hero + tag + rows;
+    return `<div class="dash">${aside}<div class="dash__main">${flow}<div class="dash__grid">${cards}</div></div></div>`;
   }
   const articleEl = $('#article');
-  const article = { open: false, last: null };
-  function openArticle(id) {
+  const article = { open: false, last: null, from: null, scroll: null };
+  function openArticle(id, from) {
     const it = news.items.find(x => x.id === id);
     if (!articleEl || article.open || !it) return;
     article.open = true;
     article.last = document.activeElement;
+    article.from = from || null;
     const mins = it.readingTime || 1;
     $('[data-article-kicker]', articleEl).textContent = `${CAT_NAMES[it.category] || it.category} · ${fmtDate(it.published)} · ${mins} min read`;
     $('[data-article-title]', articleEl).textContent = it.title;
-    $('[data-article-body]', articleEl).innerHTML = renderTemplate(it)
-      + `<a class="article__original" href="${esc(it.url)}" target="_blank" rel="noopener">Read the original at ${esc(it.source.name)} <span aria-hidden="true">↗</span></a>`;
+    $('[data-article-body]', articleEl).innerHTML = renderTemplate(it);
     $('[data-article-body]', articleEl).scrollTop = 0;
     articleEl.hidden = false;
     overlay(true, { hideScene: true, onEscape: closeArticle });
-    requestAnimationFrame(() => articleEl.classList.add('is-open'));
+    articleEl.classList.add('is-open');
+    morph($('.sheet__panel', articleEl), article.from, true);
+    article.scroll = smoothScroll($('[data-article-body]', articleEl));
     setTimeout(() => { const c = $('[data-article-close]', articleEl); if (c) c.focus({ preventScroll: true }); }, 60);
     ui();
   }
   function closeArticle() {
     if (!article.open) return;
     article.open = false;
+    if (article.scroll) { article.scroll.destroy(); article.scroll = null; }
     articleEl.classList.remove('is-open');
     overlay(false);
-    setTimeout(() => { if (!article.open) articleEl.hidden = true; }, reduced ? 0 : 480);
+    morph($('.sheet__panel', articleEl), article.from, false, () => { if (!article.open) articleEl.hidden = true; });
     if (article.last && article.last.focus) article.last.focus({ preventScroll: true });
   }
   document.addEventListener('click', e => {
     const b = e.target.closest('[data-article-open]');
     if (!b) return;
-    const id = b.closest('.news-card');
-    if (id) { ui(); openArticle(id.dataset.id); }
+    const card = b.closest('.news-card');
+    if (card) { ui(); openArticle(card.dataset.id, card); }
   });
   $$('[data-article-close]').forEach(b => b.addEventListener('click', closeArticle));
 
@@ -477,7 +592,7 @@
     background: 'Background', projects: 'My projects', hobbies: 'Hobbies & interests',
     tools: 'Tools I use', site: 'About this website', gallery: 'Gallery',
   };
-  const sheet = { open: false, last: null };
+  const sheet = { open: false, last: null, scroll: null };
   function openSheet(id, from) {
     const tpl = document.getElementById(`sheet-${id}`);
     if (!sheetEl || !tpl || sheet.open) return;
@@ -488,21 +603,28 @@
     $('.sheet__icon', sheetEl).innerHTML = icon ? icon.innerHTML : '';
     const body = $('.sheet__body', sheetEl);
     body.innerHTML = '';
-    body.appendChild(tpl.content.cloneNode(true));
+    const inner = document.createElement('div');                 // one content box for the panel's Lenis to measure
+    inner.className = 'sheet__inner';
+    inner.appendChild(tpl.content.cloneNode(true));
+    body.appendChild(inner);
     body.scrollTop = 0;
     sheetEl.dataset.sheet = id;
     sheetEl.hidden = false;
-    overlay(true, { onEscape: closeSheet });
-    requestAnimationFrame(() => requestAnimationFrame(() => sheetEl.classList.add('is-open')));
+    // the scene fades out and stops drawing behind a panel, so the panel animates and scrolls on a free GPU
+    overlay(true, { hideScene: true, onEscape: closeSheet });
+    sheetEl.classList.add('is-open');
+    morph($('.sheet__panel', sheetEl), sheet.last, true);
+    sheet.scroll = smoothScroll(body);
     setTimeout(() => { const c = $('.sheet__head [data-sheet-close]', sheetEl); if (c) c.focus({ preventScroll: true }); }, 60);
     ui();
   }
   function closeSheet() {
     if (!sheet.open) return;
     sheet.open = false;
+    if (sheet.scroll) { sheet.scroll.destroy(); sheet.scroll = null; }
     sheetEl.classList.remove('is-open');
     overlay(false);
-    setTimeout(() => { if (!sheet.open) sheetEl.hidden = true; }, reduced ? 0 : 480);
+    morph($('.sheet__panel', sheetEl), sheet.last, false, () => { if (!sheet.open) sheetEl.hidden = true; });
     if (sheet.last && sheet.last.focus) sheet.last.focus({ preventScroll: true });
   }
   $$('[data-sheet]').forEach(t => t.addEventListener('click', () => openSheet(t.dataset.sheet, t)));
